@@ -86,23 +86,26 @@ model UserVault {
 }
 
 model Position {
-  id             String     @id @default(uuid())
-  follower       String
-  leader         String
-  vaultId        String     @map("vault_id")
-  ausdcAllocated Decimal    @map("ausdc_allocated") @db.Decimal(20, 6)
-  entryPrice     Decimal    @map("entry_price")     @db.Decimal(20, 10)
-  exitPrice      Decimal?   @map("exit_price")      @db.Decimal(20, 10)
-  pnl            Decimal?   @db.Decimal(20, 6)
-  status         String     @default("OPEN")
-  openedAt       DateTime   @map("opened_at")
-  closedAt       DateTime?  @map("closed_at")
-  txHashOpen     String?    @map("tx_hash_open")
-  txHashClose    String?    @map("tx_hash_close")
-  vault          UserVault  @relation(fields: [vaultId], references: [id])
+  id                String     @id @default(uuid())
+  follower          String
+  leader            String
+  vaultId           String     @map("vault_id")
+  token             String
+  ausdcAllocated    Decimal    @map("ausdc_allocated")     @db.Decimal(20, 6)
+  entryPrice        Decimal    @map("entry_price")         @db.Decimal(20, 10)
+  exitPrice         Decimal?   @map("exit_price")          @db.Decimal(20, 10)
+  pnl               Decimal?   @db.Decimal(20, 6)
+  status            String     @default("OPEN")
+  onChainPositionId String?    @map("on_chain_position_id")
+  openedAt          DateTime   @map("opened_at")
+  closedAt          DateTime?  @map("closed_at")
+  txHashOpen        String?    @map("tx_hash_open")
+  txHashClose       String?    @map("tx_hash_close")
+  vault             UserVault  @relation(fields: [vaultId], references: [id])
 
   @@index([follower, status])
   @@index([leader, status])
+  @@index([token])
   @@map("positions")
 }
 

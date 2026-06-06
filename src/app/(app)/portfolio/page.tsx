@@ -1,252 +1,183 @@
+// src/app/(app)/portfolio/page.tsx
 'use client';
-import ConnectButton from '@/components/ConnectButton';
 
-import { useAccount }          from 'wagmi';
-import Link                    from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { motion } from 'framer-motion';
 
-interface OpenPosition {
-  id:            string;
-  leader:        string;
-  token:         string;
-  usdcSpent:     number;
-  tokenAmount:   number;
-  entryPrice:    number;
-  currentPrice:  number;
-  unrealisedPnl: number;
-  unrealisedPct: number;
-  timestamp:     string;
-}
+const MOCK_HAS_VAULTS = true; // Toggle empty vs non-empty state
 
-interface ClosedTrade {
-  id:         string;
-  leader:     string;
-  token:      string;
-  usdcSpent:  number;
-  entryPrice: number;
-  exitPrice:  number;
-  pnl:        number;
-  timestamp:  string;
-}
-
-interface Portfolio {
-  vault:              { virtualUsdc: number; startingCapital: number } | null;
-  openPositions:      OpenPosition[];
-  closedTrades:       ClosedTrade[];
-  following:          string[];
-  wsomiPrice:         number;
-  totalUnrealisedPnl: number;
-  totalRealisedPnl:   number;
-}
-
-function PnlBadge({ value, pct }: { value: number; pct?: number }) {
-  const color = value >= 0 ? 'var(--success)' : 'var(--error)';
-  return (
-    <span style={{ color, fontWeight: 700 }}>
-      {value >= 0 ? '+' : ''}${value.toFixed(2)}
-      {pct !== undefined && (
-        <span style={{ fontSize: '0.8em', marginLeft: 4, opacity: 0.8 }}>
-          ({pct >= 0 ? '+' : ''}{pct.toFixed(2)}%)
-        </span>
-      )}
-    </span>
-  );
-}
-
-function Stat({ label, value, sub }: { label: string; value: React.ReactNode; sub?: string }) {
-  return (
-    <div className="glass-panel" style={{ padding: '1.25rem 1.5rem', flex: 1 }}>
-      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.4rem' }}>{label}</p>
-      <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{value}</div>
-      {sub && <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>{sub}</p>}
-    </div>
-  );
-}
+const MOCK_VAULTS = [
+  { leader: "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B", locked: 500, pnl: 47.3, risk: 3, status: "ACTIVE" },
+  { leader: "0xCA35b7d915458EF540aDe6068dFe2F44E8fa733c", locked: 200, pnl: -12.1, risk: 2, status: "ACTIVE" },
+];
 
 export default function PortfolioPage() {
-  const { address, isConnected } = useAccount();
-  const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
-  const [loading, setLoading]     = useState(false);
+  const router = useRouter();
+  const [hasVaults] = useState(MOCK_HAS_VAULTS);
 
-  const fetchPortfolio = async () => {
-    if (!address) return;
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/portfolio?address=${address}`);
-      const data = await res.json();
-      setPortfolio(data);
-    } catch { /* ignore */ }
-    finally { setLoading(false); }
+  // Computations
+  const totalLocked = MOCK_VAULTS.reduce((sum, v) => sum + v.locked, 0);
+  const totalPnl = MOCK_VAULTS.reduce((sum, v) => sum + v.pnl, 0);
+  const activeVaultCount = MOCK_VAULTS.length;
+
+  const formatAddress = (addr: string) => {
+    return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
   };
 
-  useEffect(() => {
-    fetchPortfolio();
-    const interval = setInterval(fetchPortfolio, 30_000); // refresh every 30s for live P&L
-    return () => clearInterval(interval);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [address]);
-
-  const totalValue = portfolio
-    ? (portfolio.vault?.virtualUsdc ?? 0) + portfolio.totalUnrealisedPnl
-    : 0;
-
-  const totalReturn = portfolio?.vault
-    ? ((totalValue - portfolio.vault.startingCapital) / portfolio.vault.startingCapital) * 100
-    : 0;
+  const renderRiskDots = (risk: number) => {
+    return (
+      <div className="flex gap-1 items-center">
+        {[1, 2, 3, 4, 5].map((dot) => (
+          <div
+            key={dot}
+            className={`w-1.5 h-1.5 rounded-full ${
+              dot <= risk ? 'bg-[#d97706]' : 'bg-white/10'
+            }`}
+          />
+        ))}
+      </div>
+    );
+  };
 
   return (
-    <div className="container">
-      <main style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-        {!isConnected ? (
-          <div className="glass-panel panel-content" style={{ textAlign: 'center', padding: '5rem 2rem' }}>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem', marginBottom: '1.5rem' }}>
-              Connect your wallet to view your virtual portfolio.
-            </p>
-            <ConnectButton />
-          </div>
-        ) : loading && !portfolio ? (
-          <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-secondary)' }}>
-            Loading portfolio…
-          </div>
-        ) : !portfolio?.vault ? (
-          <div className="glass-panel panel-content" style={{ textAlign: 'center', padding: '4rem' }}>
-            <p style={{ fontSize: '1.1rem', marginBottom: '0.75rem' }}>No vault found</p>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
-              Go to <Link href="/traders" style={{ color: 'var(--primary)' }}>Star Traders</Link> and follow someone to create your paper vault.
-            </p>
-          </div>
-        ) : (
-          <>
-            {/* Stats row */}
-            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-              <Stat
-                label="Virtual Balance"
-                value={`$${(portfolio.vault.virtualUsdc / 1e6).toFixed(2)}`}
-                sub="available USDC.e"
-              />
-              <Stat
-                label="Unrealised P&L"
-                value={<PnlBadge value={portfolio.totalUnrealisedPnl} />}
-                sub={`WSOMI @ $${portfolio.wsomiPrice.toFixed(4)}`}
-              />
-              <Stat
-                label="Realised P&L"
-                value={<PnlBadge value={portfolio.totalRealisedPnl} />}
-                sub={`${portfolio.closedTrades.length} closed trades`}
-              />
-              <Stat
-                label="Total Return"
-                value={
-                  <span style={{ color: totalReturn >= 0 ? 'var(--success)' : 'var(--error)', fontWeight: 700 }}>
-                    {totalReturn >= 0 ? '+' : ''}{totalReturn.toFixed(2)}%
-                  </span>
-                }
-                sub={`from $${(portfolio.vault.startingCapital / 1e6).toFixed(0)} starting`}
-              />
+    <div className="min-h-screen bg-black text-white px-6 md:px-16 py-12 max-w-6xl mx-auto w-full select-none">
+      {/* Page Title */}
+      <div className="mb-12">
+        <h1 className="text-4xl md:text-5xl font-medium tracking-tight text-white mb-3">
+          Portfolio
+        </h1>
+        <p className="text-white/40 text-sm max-w-md">
+          Monitor your deployed capital, tracking returns and managing active copying rules.
+        </p>
+      </div>
+
+      {!hasVaults ? (
+        /* Empty State */
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          className="flex flex-col items-center justify-center border border-white/[0.06] rounded-2xl bg-white/[0.01] py-24 px-6 text-center"
+        >
+          <div className="text-white/30 text-lg font-medium mb-2">No active vaults</div>
+          <p className="text-white/40 text-xs max-w-xs mb-8">
+            You are not currently copying any traders. Explore the leaderboard to set up your first copy trading vault.
+          </p>
+          <button
+            onClick={() => router.push('/traders')}
+            className="bg-white hover:bg-neutral-200 text-black font-medium text-sm rounded-full px-6 py-2.5 transition-colors duration-200 cursor-pointer"
+          >
+            Browse Traders
+          </button>
+        </motion.div>
+      ) : (
+        /* Non-Empty State */
+        <div className="space-y-10">
+          {/* Top Summary Row */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Total Locked */}
+            <div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-5">
+              <span className="text-[10px] uppercase tracking-wider text-white/40 block mb-1.5">
+                Total Locked
+              </span>
+              <span className="text-2xl font-mono font-medium text-white">
+                {totalLocked.toLocaleString()} aUSD
+              </span>
             </div>
 
-            {/* Open positions */}
-            <div className="glass-panel panel-content">
-              <h2 className="card-title"><span>📈</span> Open Positions</h2>
-              {portfolio.openPositions.length === 0 ? (
-                <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '2rem' }}>
-                  No open positions. The watcher will open positions when your followed traders swap.
-                </p>
-              ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                        {['Leader', 'Token', 'Invested', 'Entry', 'Current', 'Unrealised P&L'].map((h) => (
-                          <th key={h} style={{ padding: '0.75rem 0.5rem', textAlign: 'left', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {portfolio.openPositions.map((pos) => (
-                        <tr key={pos.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                          <td style={{ padding: '0.85rem 0.5rem', fontFamily: 'monospace', fontSize: '0.85rem' }}>
-                            {pos.leader.slice(0, 8)}…
-                          </td>
-                          <td style={{ padding: '0.85rem 0.5rem', fontWeight: 600 }}>{pos.token}</td>
-                          <td style={{ padding: '0.85rem 0.5rem' }}>${pos.usdcSpent.toFixed(2)}</td>
-                          <td style={{ padding: '0.85rem 0.5rem', fontFamily: 'monospace' }}>${pos.entryPrice.toFixed(4)}</td>
-                          <td style={{ padding: '0.85rem 0.5rem', fontFamily: 'monospace' }}>${pos.currentPrice.toFixed(4)}</td>
-                          <td style={{ padding: '0.85rem 0.5rem' }}>
-                            <PnlBadge value={pos.unrealisedPnl} pct={pos.unrealisedPct} />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+            {/* Unrealized P&L */}
+            <div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-5">
+              <span className="text-[10px] uppercase tracking-wider text-white/40 block mb-1.5">
+                Unrealized P&L
+              </span>
+              <span className={`text-2xl font-mono font-medium ${totalPnl >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
+                {totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}
+              </span>
             </div>
 
-            {/* Trade history */}
-            <div className="glass-panel panel-content">
-              <h2 className="card-title"><span>📋</span> Trade History</h2>
-              {portfolio.closedTrades.length === 0 ? (
-                <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '2rem' }}>
-                  No closed trades yet.
-                </p>
-              ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                        {['Leader', 'Token', 'Invested', 'Entry', 'Exit', 'P&L', 'Date'].map((h) => (
-                          <th key={h} style={{ padding: '0.75rem 0.5rem', textAlign: 'left', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {portfolio.closedTrades.map((t) => (
-                        <tr key={t.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                          <td style={{ padding: '0.85rem 0.5rem', fontFamily: 'monospace', fontSize: '0.85rem' }}>{t.leader.slice(0, 8)}…</td>
-                          <td style={{ padding: '0.85rem 0.5rem', fontWeight: 600 }}>{t.token}</td>
-                          <td style={{ padding: '0.85rem 0.5rem' }}>${t.usdcSpent.toFixed(2)}</td>
-                          <td style={{ padding: '0.85rem 0.5rem', fontFamily: 'monospace' }}>${t.entryPrice.toFixed(4)}</td>
-                          <td style={{ padding: '0.85rem 0.5rem', fontFamily: 'monospace' }}>${t.exitPrice.toFixed(4)}</td>
-                          <td style={{ padding: '0.85rem 0.5rem' }}><PnlBadge value={t.pnl} /></td>
-                          <td style={{ padding: '0.85rem 0.5rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                            {new Date(t.timestamp).toLocaleDateString()}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+            {/* Active Vaults */}
+            <div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-5">
+              <span className="text-[10px] uppercase tracking-wider text-white/40 block mb-1.5">
+                Active Vaults
+              </span>
+              <span className="text-2xl font-mono font-medium text-white">
+                {activeVaultCount}
+              </span>
             </div>
+          </div>
 
-            {/* Following list */}
-            {portfolio.following.length > 0 && (
-              <div className="glass-panel panel-content">
-                <h2 className="card-title" style={{ marginBottom: '1rem' }}><span>👥</span> Following</h2>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  {portfolio.following.map((addr) => (
-                    <Link key={addr} href={`/traders/${addr}`}
-                      style={{
-                        fontFamily: 'monospace', fontSize: '0.85rem', padding: '0.4rem 0.85rem',
-                        borderRadius: 8, background: 'rgba(99,102,241,0.1)',
-                        border: '1px solid rgba(99,102,241,0.2)', color: 'var(--primary)',
-                        textDecoration: 'none',
-                      }}>
-                      {addr.slice(0, 10)}…{addr.slice(-4)}
-                    </Link>
-                  ))}
+          {/* Vault List Header */}
+          <div>
+            <h2 className="text-lg font-medium text-white/80 mb-4">Active Vaults</h2>
+            <div className="space-y-3">
+              {MOCK_VAULTS.map((vault) => (
+                <div
+                  key={vault.leader}
+                  className="bg-white/[0.03] border border-white/[0.07] hover:border-white/20 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-6 transition-all duration-300"
+                >
+                  {/* Left: Leader address */}
+                  <div className="flex items-center gap-3 min-w-[200px]">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 shadow-[0_0_12px_rgba(217,119,6,0.15)] flex-shrink-0" />
+                    <div>
+                      <span className="font-mono text-sm tracking-tight text-white block">
+                        {formatAddress(vault.leader)}
+                      </span>
+                      <span className="text-[10px] text-white/30 uppercase tracking-wide">
+                        Leader
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Middle: Locked, P&L, Risk */}
+                  <div className="grid grid-cols-3 gap-6 flex-grow max-w-lg">
+                    <div>
+                      <span className="text-[9px] uppercase tracking-wider text-white/30 block mb-1">
+                        Locked
+                      </span>
+                      <span className="text-sm font-mono text-white/90">
+                        {vault.locked} aUSD
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] uppercase tracking-wider text-white/30 block mb-1">
+                        P&L
+                      </span>
+                      <span className={`text-sm font-mono font-semibold ${vault.pnl >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
+                        {vault.pnl >= 0 ? '+' : ''}${vault.pnl.toFixed(2)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] uppercase tracking-wider text-white/30 block mb-1">
+                        Risk Level
+                      </span>
+                      <div className="mt-1">{renderRiskDots(vault.risk)}</div>
+                    </div>
+                  </div>
+
+                  {/* Right: Status badge & Action */}
+                  <div className="flex items-center justify-between md:justify-end gap-6 border-t md:border-t-0 border-white/[0.05] pt-4 md:pt-0">
+                    <div className="flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-[#22c55e]" />
+                      <span className="text-xs text-[#22c55e] font-medium tracking-wide uppercase">
+                        {vault.status}
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={() => router.push(`/vault/${vault.leader}`)}
+                      className="bg-transparent hover:bg-white/5 border border-white/20 hover:border-white/40 text-white font-medium text-xs rounded-full px-5 py-2 transition-all duration-200 cursor-pointer"
+                    >
+                      Manage
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
-          </>
-        )}
-      </main>
-
-      <footer>
-        <p>© 2026 Somnia Space</p>
-        <p style={{ color: 'var(--text-muted)' }}>Prices refresh every 30s from Somnia Mainnet</p>
-      </footer>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
