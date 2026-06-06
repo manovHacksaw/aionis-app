@@ -12,6 +12,7 @@ const WINDOWS: Record<string, number> = {
 };
 
 export async function GET(req: Request) {
+  try {
   const { searchParams } = new URL(req.url);
   const window = searchParams.get('window') ?? '1h';
   const ms     = WINDOWS[window];
@@ -82,4 +83,9 @@ export async function GET(req: Request) {
   }));
 
   return NextResponse.json({ window, since: since.toISOString(), traders });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[leaderboard]', msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }

@@ -63,7 +63,7 @@ export default function PortfolioPage() {
   const fade = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.16,1,0.3,1] as const } } };
 
   return (
-    <div className="min-h-screen bg-black text-white px-6 md:px-16 py-12 max-w-5xl mx-auto w-full select-none font-sans">
+    <div className="text-white px-16 py-8 max-w-[1440px] mx-auto w-full select-none font-sans">
       <div className="mb-10">
         <h1 className="text-[28px] font-light tracking-[-0.04em] text-white mb-1">Portfolio</h1>
         <p className="text-[14px] text-neutral-400 font-normal">Your active copy-trading vaults.</p>
@@ -71,7 +71,7 @@ export default function PortfolioPage() {
 
       {/* Not connected */}
       {!isConnected && (
-        <div className="py-24 text-center border border-white/[0.05] rounded-2xl">
+        <div className="py-24 text-center border border-zinc-800/50 rounded-2xl">
           <p className="text-neutral-500 text-[14px] mb-1">Connect your wallet to view your portfolio.</p>
         </div>
       )}
@@ -91,7 +91,7 @@ export default function PortfolioPage() {
         <motion.div
           initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: [0.16,1,0.3,1] }}
-          className="py-24 text-center border border-white/[0.05] rounded-2xl"
+          className="py-24 text-center border border-zinc-800/50 rounded-2xl"
         >
           <p className="text-neutral-500 text-[14px] mb-1">No active vaults yet.</p>
           <p className="text-neutral-700 text-[13px] mb-8">Pick a trader to start copying their moves.</p>
@@ -115,7 +115,7 @@ export default function PortfolioPage() {
               { label: 'Unrealized P&L',  value: `${summary.totalPnl >= 0 ? '+' : ''}${summary.totalPnl.toFixed(2)} aUSD`, color: summary.totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400' },
               { label: 'Active Vaults',   value: summary.activeCount.toString(), color: 'text-white' },
             ].map((s) => (
-              <div key={s.label} className="bg-white/[0.03] border border-white/[0.07] rounded-2xl px-6 py-5">
+              <div key={s.label} className="bg-[#191919] border border-zinc-800 shadow-[0_1px_3px_rgba(0,0,0,0.4)] rounded-2xl px-6 py-5">
                 <p className="text-[11px] uppercase tracking-widest text-neutral-600 mb-2">{s.label}</p>
                 <p className={`text-[22px] font-light tracking-tight tabular-nums ${s.color}`}>{s.value}</p>
               </div>
@@ -130,7 +130,7 @@ export default function PortfolioPage() {
                 <motion.div
                   key={vault.id}
                   variants={fade}
-                  className="bg-white/[0.03] border border-white/[0.07] hover:border-white/[0.14] rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-5 transition-all duration-200"
+                  className="bg-[#191919] border border-zinc-800 shadow-[0_1px_3px_rgba(0,0,0,0.4)] hover:border-zinc-700 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-5 transition-all duration-200"
                 >
                   {/* Leader */}
                   <div className="flex items-center gap-3 min-w-[180px]">

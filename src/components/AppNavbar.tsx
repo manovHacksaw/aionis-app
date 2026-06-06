@@ -1,59 +1,62 @@
-// src/components/AppNavbar.tsx
 'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import ConnectButton from '@/components/ConnectButton';
 
-const LogoIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-white">
-    <circle cx="12" cy="12" r="3.5" fill="currentColor" />
-    <line x1="12" y1="3"  x2="12" y2="6"  stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-    <line x1="12" y1="18" x2="12" y2="21" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-    <line x1="3"  y1="12" x2="6"  y2="12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-    <line x1="18" y1="12" x2="21" y2="12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-    <line x1="5.64"  y1="5.64"  x2="7.76"  y2="7.76"  stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-    <line x1="16.24" y1="16.24" x2="18.36" y2="18.36" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-    <line x1="5.64"  y1="18.36" x2="7.76"  y2="16.24" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-    <line x1="16.24" y1="7.76"  x2="18.36" y2="5.64"  stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-  </svg>
-);
-
 const NAV_LINKS = [
   { name: 'Dashboard', href: '/dashboard' },
   { name: 'Traders',   href: '/traders'   },
   { name: 'Portfolio', href: '/portfolio' },
+  { name: 'Vault',     href: '/vault'     },
 ];
 
 export default function AppNavbar() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 h-[72px] flex items-center justify-between px-6 md:px-16 bg-black border-b border-white/[0.04] select-none">
-      <Link href="/" className="flex items-center gap-2 group cursor-pointer">
-        <div className="text-white/95 group-hover:rotate-45 transition-transform duration-500 ease-out">
-          <LogoIcon />
+    <nav className="sticky top-0 z-50 bg-[#0d0d0d]/95 backdrop-blur-md select-none flex-shrink-0">
+      <div className="h-[60px] flex items-center gap-8 px-16 max-w-[1440px] mx-auto w-full mt-8">
+
+        {/* Logo */}
+        <Link href="/" className="flex items-center gap-2 flex-shrink-0 cursor-pointer">
+          <div className="w-6 h-6 rounded-md bg-amber-500 flex items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="black" />
+            </svg>
+          </div>
+          <span className="text-[15px] font-semibold tracking-tight text-white">Aionis</span>
+        </Link>
+
+        {/* Nav tabs — free-floating, no container */}
+        <div className="flex items-center gap-1">
+          {NAV_LINKS.map((l) => (
+            <Link
+              key={l.href}
+              href={l.href}
+              className={`px-4 py-1.5 rounded-full text-[13.5px] font-medium transition-all duration-200 ${
+                pathname.startsWith(l.href)
+                  ? 'bg-amber-500 text-black'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              {l.name}
+            </Link>
+          ))}
         </div>
-        <span className="text-lg font-medium tracking-tight text-white/90 font-sans lowercase">
-          aionis
-        </span>
-      </Link>
 
-      <div className="flex items-center gap-8">
-        {NAV_LINKS.map((l) => (
-          <Link
-            key={l.href}
-            href={l.href}
-            className={`text-[14px] font-normal transition-colors duration-300 tracking-wide ${
-              pathname === l.href ? 'text-white' : 'text-neutral-400 hover:text-white'
-            }`}
-          >
-            {l.name}
-          </Link>
-        ))}
+        <div className="flex-1" />
+
+        {/* Chain indicator */}
+        <button className="flex items-center gap-2 text-[13px] text-zinc-300 hover:text-white transition-colors cursor-pointer">
+          Somnia
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+
+        <ConnectButton />
       </div>
-
-      <ConnectButton />
     </nav>
   );
 }

@@ -53,7 +53,7 @@ export default function TradersPage() {
     .sort((a, b) => b[sortBy] - a[sortBy]);
 
   return (
-    <div className="min-h-screen bg-black text-white px-6 md:px-16 py-12 max-w-5xl mx-auto w-full select-none font-sans">
+    <div className="text-white px-16 py-8 max-w-[1440px] mx-auto w-full select-none font-sans">
 
       {/* Header */}
       <div className="mb-10 flex flex-col md:flex-row md:items-end md:justify-between gap-6">
@@ -64,7 +64,7 @@ export default function TradersPage() {
 
         <div className="flex flex-wrap gap-2">
           {/* Time window pill */}
-          <div className="flex items-center gap-0.5 bg-white/[0.03] border border-white/[0.07] rounded-xl p-1">
+          <div className="flex items-center gap-0.5 bg-[#191919] border border-zinc-800 rounded-xl p-1">
             {WINDOWS.map((w) => (
               <button
                 key={w}
@@ -83,13 +83,13 @@ export default function TradersPage() {
             placeholder="Search address…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="bg-white/[0.03] border border-white/[0.07] rounded-xl px-4 py-2 text-[13px] text-white placeholder-neutral-700 focus:outline-none focus:border-white/20 transition-all w-48 font-sans"
+            className="bg-[#191919] border border-zinc-800 rounded-xl px-4 py-2 text-[13px] text-white placeholder-neutral-700 focus:outline-none focus:border-white/20 transition-all w-48 font-sans"
           />
 
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as SortKey)}
-            className="bg-white/[0.03] border border-white/[0.07] rounded-xl px-3 py-2 text-[13px] text-white focus:outline-none cursor-pointer font-sans"
+            className="bg-[#191919] border border-zinc-800 rounded-xl px-3 py-2 text-[13px] text-white focus:outline-none cursor-pointer font-sans"
           >
             <option value="volume" className="bg-black">Volume</option>
             <option value="trades" className="bg-black">Trades</option>
@@ -138,7 +138,7 @@ export default function TradersPage() {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.04, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                className="grid grid-cols-[2rem_1fr_6rem_6rem_5rem_6rem_7rem] gap-4 items-center px-4 py-3.5 rounded-xl border border-transparent hover:border-white/[0.06] hover:bg-white/[0.02] transition-all duration-200"
+                className="grid grid-cols-[2rem_1fr_6rem_6rem_5rem_6rem_7rem] gap-4 items-center px-4 py-3.5 rounded-xl border border-transparent hover:border-zinc-700/80 hover:bg-zinc-900/30 transition-all duration-200"
               >
                 <span className="text-[12px] text-neutral-700 tabular-nums">{trader.rank}</span>
 

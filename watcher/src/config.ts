@@ -90,6 +90,25 @@ export const POOL = {
   token1: TOKENS.USDCE,
 } as const;
 
+// ── Somnia Testnet (where VaultManager lives) ─────────────────────────────────
+
+export const somniaTestnet = defineChain({
+  id: 50312,
+  name: 'Somnia Shannon Testnet',
+  nativeCurrency: { decimals: 18, name: 'STT', symbol: 'STT' },
+  rpcUrls: {
+    default: {
+      http:      ['https://dream-rpc.somnia.network/'],
+      webSocket: ['wss://dream-rpc.somnia.network/ws'],
+    },
+  },
+});
+
+// ── On-chain keeper config ────────────────────────────────────────────────────
+
+export const VAULT_MANAGER_ADDRESS = (process.env.VAULT_MANAGER_ADDRESS ?? '') as `0x${string}`;
+export const KEEPER_PRIVATE_KEY    = (process.env.KEEPER_PRIVATE_KEY    ?? '') as `0x${string}`;
+
 // ── Copy-trade config ─────────────────────────────────────────────────────────
 
 export const DEFAULT_COPY_PCT = Number(process.env.DEFAULT_COPY_PCT ?? 20);

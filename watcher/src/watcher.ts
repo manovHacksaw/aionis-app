@@ -2,6 +2,7 @@ import { createPublicClient, webSocket, http } from 'viem';
 import { ALGEBRA_SWAP_ABI }           from './price.js';
 import { parseSwapLog }               from './parser.js';
 import { processTrade }               from './copy-engine.js';
+import { callCheckLeaderActivity }    from './keeper.js';
 import { claimSwap }                  from './dedup.js';
 import { somniaMainnet, POOLS, type PoolDef } from './config.js';
 import type { Db }                    from './db.js';
@@ -26,9 +27,12 @@ function makeHttpClient() {
 let trackedLeaders = new Set<string>();
 
 async function refreshLeaders(db: Db) {
-  const leaders  = await db.getAllLeaders();
-  trackedLeaders = new Set(leaders.map((l) => l.toLowerCase()));
-  console.log(`[watcher] Tracking ${trackedLeaders.size} leader(s)`);
+  const [paperLeaders, onChainLeaders] = await Promise.all([
+    db.getAllLeaders(),
+    db.getAllOnChainLeaders(),
+  ]);
+  trackedLeaders = new Set([...paperLeaders, ...onChainLeaders].map((l) => l.toLowerCase()));
+  console.log(`[watcher] Tracking ${trackedLeaders.size} leader(s) (${paperLeaders.length} paper + ${onChainLeaders.length} on-chain)`);
 }
 
 // Cached WSOMI price — updated whenever a WSOMI pool swap is seen
@@ -93,9 +97,24 @@ export async function startWatcher(db: Db): Promise<() => void> {
     if (trackedLeaders.has(recipient)) {
       const claimed = await claimSwap(`${txHash}:${pool.address}`, recipient);
       if (claimed) {
+        // Paper trading (off-chain simulation)
         await processTrade(intent, db).catch((e) =>
           console.error('[watcher] processTrade error:', e.message)
         );
+
+        // On-chain copy trading: only trigger for followers whose allowlist includes the traded token
+        db.getOnChainFollowers(recipient).then(async (vaults) => {
+          const tokenOut = intent.tokenOut.toLowerCase();
+          for (const { follower, allowlist } of vaults) {
+            if (!allowlist.includes(tokenOut)) {
+              console.log(`[keeper] skip ${follower.slice(0, 8)}… — ${tokenOut.slice(0, 8)}… not in allowlist`);
+              continue;
+            }
+            callCheckLeaderActivity(follower, recipient).catch((e) =>
+              console.error(`[keeper] ${follower.slice(0, 8)}… → ${e.message}`)
+            );
+          }
+        }).catch((e) => console.error('[watcher] getOnChainFollowers error:', e.message));
       }
     }
   }

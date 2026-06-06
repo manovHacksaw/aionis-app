@@ -67,6 +67,7 @@ export interface VaultManagerInterface extends Interface {
       | "MAX_TRADE_AGE"
       | "MIN_COPY_SCORE"
       | "MIN_TRADE_AUSD"
+      | "PIPELINE_TIMEOUT"
       | "PRICE_API_BASE"
       | "addToAllowlist"
       | "checkLeaderActivity"
@@ -85,13 +86,17 @@ export interface VaultManagerInterface extends Interface {
       | "onPriceUpdate"
       | "onStrategistResponse"
       | "onWatcherResponse"
+      | "owner"
       | "pauseVault"
-      | "pipelineActive"
+      | "pipelineActiveAt"
       | "positions"
       | "removeFromAllowlist"
       | "requestToVault"
       | "resumeVault"
+      | "setApiBase"
       | "setKeeper"
+      | "setPriceApiBase"
+      | "transferOwnership"
       | "updatePrice"
       | "vaultId"
       | "vaultPositions"
@@ -145,6 +150,10 @@ export interface VaultManagerInterface extends Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "MIN_TRADE_AUSD",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "PIPELINE_TIMEOUT",
     values?: undefined
   ): string;
   encodeFunctionData(
@@ -215,22 +224,23 @@ export interface VaultManagerInterface extends Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "onPriceUpdate",
-    values: [BytesLike, BytesLike]
+    values: [BigNumberish, BytesLike]
   ): string;
   encodeFunctionData(
     functionFragment: "onStrategistResponse",
-    values: [BytesLike, BytesLike]
+    values: [BigNumberish, BytesLike]
   ): string;
   encodeFunctionData(
     functionFragment: "onWatcherResponse",
-    values: [BytesLike, BytesLike]
+    values: [BigNumberish, BytesLike]
   ): string;
+  encodeFunctionData(functionFragment: "owner", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "pauseVault",
     values: [AddressLike]
   ): string;
   encodeFunctionData(
-    functionFragment: "pipelineActive",
+    functionFragment: "pipelineActiveAt",
     values: [BytesLike]
   ): string;
   encodeFunctionData(
@@ -243,14 +253,23 @@ export interface VaultManagerInterface extends Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "requestToVault",
-    values: [BytesLike]
+    values: [BigNumberish]
   ): string;
   encodeFunctionData(
     functionFragment: "resumeVault",
     values: [AddressLike]
   ): string;
+  encodeFunctionData(functionFragment: "setApiBase", values: [string]): string;
   encodeFunctionData(
     functionFragment: "setKeeper",
+    values: [AddressLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "setPriceApiBase",
+    values: [string]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "transferOwnership",
     values: [AddressLike]
   ): string;
   encodeFunctionData(
@@ -295,6 +314,10 @@ export interface VaultManagerInterface extends Interface {
   ): Result;
   decodeFunctionResult(
     functionFragment: "MIN_TRADE_AUSD",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "PIPELINE_TIMEOUT",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -360,9 +383,10 @@ export interface VaultManagerInterface extends Interface {
     functionFragment: "onWatcherResponse",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "pauseVault", data: BytesLike): Result;
   decodeFunctionResult(
-    functionFragment: "pipelineActive",
+    functionFragment: "pipelineActiveAt",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "positions", data: BytesLike): Result;
@@ -378,7 +402,16 @@ export interface VaultManagerInterface extends Interface {
     functionFragment: "resumeVault",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "setApiBase", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "setKeeper", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "setPriceApiBase",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "transferOwnership",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "updatePrice",
     data: BytesLike
@@ -498,10 +531,10 @@ export namespace PriceUpdatedEvent {
 }
 
 export namespace StrategistRequestedEvent {
-  export type InputTuple = [requestId: BytesLike, vaultId: BytesLike];
-  export type OutputTuple = [requestId: string, vaultId: string];
+  export type InputTuple = [requestId: BigNumberish, vaultId: BytesLike];
+  export type OutputTuple = [requestId: bigint, vaultId: string];
   export interface OutputObject {
-    requestId: string;
+    requestId: bigint;
     vaultId: string;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
@@ -512,19 +545,19 @@ export namespace StrategistRequestedEvent {
 
 export namespace StrategistResponseEvent {
   export type InputTuple = [
-    requestId: BytesLike,
+    requestId: BigNumberish,
     vaultId: BytesLike,
     score: BigNumberish,
     willExecute: boolean
   ];
   export type OutputTuple = [
-    requestId: string,
+    requestId: bigint,
     vaultId: string,
     score: bigint,
     willExecute: boolean
   ];
   export interface OutputObject {
-    requestId: string;
+    requestId: bigint;
     vaultId: string;
     score: bigint;
     willExecute: boolean;
@@ -661,10 +694,10 @@ export namespace VaultWithdrawnEvent {
 }
 
 export namespace WatcherRequestedEvent {
-  export type InputTuple = [requestId: BytesLike, vaultId: BytesLike];
-  export type OutputTuple = [requestId: string, vaultId: string];
+  export type InputTuple = [requestId: BigNumberish, vaultId: BytesLike];
+  export type OutputTuple = [requestId: bigint, vaultId: string];
   export interface OutputObject {
-    requestId: string;
+    requestId: bigint;
     vaultId: string;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
@@ -675,7 +708,7 @@ export namespace WatcherRequestedEvent {
 
 export namespace WatcherResponseEvent {
   export type InputTuple = [
-    requestId: BytesLike,
+    requestId: BigNumberish,
     vaultId: BytesLike,
     tokenIn: AddressLike,
     tokenOut: AddressLike,
@@ -683,7 +716,7 @@ export namespace WatcherResponseEvent {
     tradeTimestamp: BigNumberish
   ];
   export type OutputTuple = [
-    requestId: string,
+    requestId: bigint,
     vaultId: string,
     tokenIn: string,
     tokenOut: string,
@@ -691,7 +724,7 @@ export namespace WatcherResponseEvent {
     tradeTimestamp: bigint
   ];
   export interface OutputObject {
-    requestId: string;
+    requestId: bigint;
     vaultId: string;
     tokenIn: string;
     tokenOut: string;
@@ -762,6 +795,8 @@ export interface VaultManager extends BaseContract {
   MIN_COPY_SCORE: TypedContractMethod<[], [bigint], "view">;
 
   MIN_TRADE_AUSD: TypedContractMethod<[], [bigint], "view">;
+
+  PIPELINE_TIMEOUT: TypedContractMethod<[], [bigint], "view">;
 
   PRICE_API_BASE: TypedContractMethod<[], [string], "view">;
 
@@ -848,26 +883,28 @@ export interface VaultManager extends BaseContract {
   latestPrice: TypedContractMethod<[arg0: AddressLike], [bigint], "view">;
 
   onPriceUpdate: TypedContractMethod<
-    [requestId: BytesLike, response: BytesLike],
+    [requestId: BigNumberish, response: BytesLike],
     [void],
     "nonpayable"
   >;
 
   onStrategistResponse: TypedContractMethod<
-    [requestId: BytesLike, response: BytesLike],
+    [requestId: BigNumberish, response: BytesLike],
     [void],
     "nonpayable"
   >;
 
   onWatcherResponse: TypedContractMethod<
-    [requestId: BytesLike, response: BytesLike],
+    [requestId: BigNumberish, response: BytesLike],
     [void],
     "nonpayable"
   >;
 
+  owner: TypedContractMethod<[], [string], "view">;
+
   pauseVault: TypedContractMethod<[leader: AddressLike], [void], "nonpayable">;
 
-  pipelineActive: TypedContractMethod<[arg0: BytesLike], [boolean], "view">;
+  pipelineActiveAt: TypedContractMethod<[arg0: BytesLike], [bigint], "view">;
 
   positions: TypedContractMethod<
     [arg0: BytesLike],
@@ -907,11 +944,21 @@ export interface VaultManager extends BaseContract {
     "nonpayable"
   >;
 
-  requestToVault: TypedContractMethod<[arg0: BytesLike], [string], "view">;
+  requestToVault: TypedContractMethod<[arg0: BigNumberish], [string], "view">;
 
   resumeVault: TypedContractMethod<[leader: AddressLike], [void], "nonpayable">;
 
+  setApiBase: TypedContractMethod<[base: string], [void], "nonpayable">;
+
   setKeeper: TypedContractMethod<[keeper: AddressLike], [void], "nonpayable">;
+
+  setPriceApiBase: TypedContractMethod<[base: string], [void], "nonpayable">;
+
+  transferOwnership: TypedContractMethod<
+    [newOwner: AddressLike],
+    [void],
+    "nonpayable"
+  >;
 
   updatePrice: TypedContractMethod<[token: AddressLike], [void], "payable">;
 
@@ -972,6 +1019,9 @@ export interface VaultManager extends BaseContract {
   ): TypedContractMethod<[], [bigint], "view">;
   getFunction(
     nameOrSignature: "MIN_TRADE_AUSD"
+  ): TypedContractMethod<[], [bigint], "view">;
+  getFunction(
+    nameOrSignature: "PIPELINE_TIMEOUT"
   ): TypedContractMethod<[], [bigint], "view">;
   getFunction(
     nameOrSignature: "PRICE_API_BASE"
@@ -1067,30 +1117,33 @@ export interface VaultManager extends BaseContract {
   getFunction(
     nameOrSignature: "onPriceUpdate"
   ): TypedContractMethod<
-    [requestId: BytesLike, response: BytesLike],
+    [requestId: BigNumberish, response: BytesLike],
     [void],
     "nonpayable"
   >;
   getFunction(
     nameOrSignature: "onStrategistResponse"
   ): TypedContractMethod<
-    [requestId: BytesLike, response: BytesLike],
+    [requestId: BigNumberish, response: BytesLike],
     [void],
     "nonpayable"
   >;
   getFunction(
     nameOrSignature: "onWatcherResponse"
   ): TypedContractMethod<
-    [requestId: BytesLike, response: BytesLike],
+    [requestId: BigNumberish, response: BytesLike],
     [void],
     "nonpayable"
   >;
   getFunction(
+    nameOrSignature: "owner"
+  ): TypedContractMethod<[], [string], "view">;
+  getFunction(
     nameOrSignature: "pauseVault"
   ): TypedContractMethod<[leader: AddressLike], [void], "nonpayable">;
   getFunction(
-    nameOrSignature: "pipelineActive"
-  ): TypedContractMethod<[arg0: BytesLike], [boolean], "view">;
+    nameOrSignature: "pipelineActiveAt"
+  ): TypedContractMethod<[arg0: BytesLike], [bigint], "view">;
   getFunction(
     nameOrSignature: "positions"
   ): TypedContractMethod<
@@ -1133,13 +1186,22 @@ export interface VaultManager extends BaseContract {
   >;
   getFunction(
     nameOrSignature: "requestToVault"
-  ): TypedContractMethod<[arg0: BytesLike], [string], "view">;
+  ): TypedContractMethod<[arg0: BigNumberish], [string], "view">;
   getFunction(
     nameOrSignature: "resumeVault"
   ): TypedContractMethod<[leader: AddressLike], [void], "nonpayable">;
   getFunction(
+    nameOrSignature: "setApiBase"
+  ): TypedContractMethod<[base: string], [void], "nonpayable">;
+  getFunction(
     nameOrSignature: "setKeeper"
   ): TypedContractMethod<[keeper: AddressLike], [void], "nonpayable">;
+  getFunction(
+    nameOrSignature: "setPriceApiBase"
+  ): TypedContractMethod<[base: string], [void], "nonpayable">;
+  getFunction(
+    nameOrSignature: "transferOwnership"
+  ): TypedContractMethod<[newOwner: AddressLike], [void], "nonpayable">;
   getFunction(
     nameOrSignature: "updatePrice"
   ): TypedContractMethod<[token: AddressLike], [void], "payable">;
@@ -1372,7 +1434,7 @@ export interface VaultManager extends BaseContract {
       PriceUpdatedEvent.OutputObject
     >;
 
-    "StrategistRequested(bytes32,bytes32)": TypedContractEvent<
+    "StrategistRequested(uint256,bytes32)": TypedContractEvent<
       StrategistRequestedEvent.InputTuple,
       StrategistRequestedEvent.OutputTuple,
       StrategistRequestedEvent.OutputObject
@@ -1383,7 +1445,7 @@ export interface VaultManager extends BaseContract {
       StrategistRequestedEvent.OutputObject
     >;
 
-    "StrategistResponse(bytes32,bytes32,uint8,bool)": TypedContractEvent<
+    "StrategistResponse(uint256,bytes32,uint8,bool)": TypedContractEvent<
       StrategistResponseEvent.InputTuple,
       StrategistResponseEvent.OutputTuple,
       StrategistResponseEvent.OutputObject
@@ -1482,7 +1544,7 @@ export interface VaultManager extends BaseContract {
       VaultWithdrawnEvent.OutputObject
     >;
 
-    "WatcherRequested(bytes32,bytes32)": TypedContractEvent<
+    "WatcherRequested(uint256,bytes32)": TypedContractEvent<
       WatcherRequestedEvent.InputTuple,
       WatcherRequestedEvent.OutputTuple,
       WatcherRequestedEvent.OutputObject
@@ -1493,7 +1555,7 @@ export interface VaultManager extends BaseContract {
       WatcherRequestedEvent.OutputObject
     >;
 
-    "WatcherResponse(bytes32,bytes32,address,address,uint256,uint256)": TypedContractEvent<
+    "WatcherResponse(uint256,bytes32,address,address,uint256,uint256)": TypedContractEvent<
       WatcherResponseEvent.InputTuple,
       WatcherResponseEvent.OutputTuple,
       WatcherResponseEvent.OutputObject

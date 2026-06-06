@@ -1,8 +1,9 @@
 import { ethers } from 'hardhat';
 
 const AUSD_ADDRESS    = process.env.AUSD_ADDRESS    ?? '';
-const API_BASE        = process.env.API_BASE        ?? 'https://aionis.xyz/api/agent/leader/';
-const PRICE_API_BASE  = process.env.PRICE_API_BASE  ?? 'https://aionis.xyz/api/price/';
+// Deploy with empty strings to save gas — call setApiBase after deployment
+const API_BASE        = process.env.API_BASE        ?? '';
+const PRICE_API_BASE  = process.env.PRICE_API_BASE  ?? '';
 
 async function main() {
   if (!AUSD_ADDRESS) {
@@ -40,10 +41,21 @@ async function main() {
   console.log('  Done. VaultManager can now mint aUSD for P&L settlement.');
   console.log('  Minter confirmed:', await ausd.minters(vmAddress));
 
+  // ── Set API URLs via setApiBase ───────────────────────────────────────────
+  const apiBase       = 'http://localhost:3001/api/agent/leader/';
+  const priceApiBase  = 'http://localhost:3001/api/price/';
+  console.log('\nSetting API URLs...');
+  const tx2 = await vm.setApiBase(apiBase);
+  await tx2.wait();
+  const tx3 = await vm.setPriceApiBase(priceApiBase);
+  await tx3.wait();
+  console.log('  API_BASE:      ', await vm.API_BASE());
+  console.log('  PRICE_API_BASE:', await vm.PRICE_API_BASE());
+
   console.log('\nNext steps:');
   console.log('  1. Copy to .env.local:  NEXT_PUBLIC_VAULT_MANAGER_ADDRESS=' + vmAddress);
   console.log('  2. Copy to watcher/.env: VAULT_MANAGER_ADDRESS=' + vmAddress);
-  console.log('  3. Fund keeper wallet with STT for gas');
+  console.log('  3. Fund keeper wallet with STT (need ~0.4 STT per checkLeaderActivity call)');
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

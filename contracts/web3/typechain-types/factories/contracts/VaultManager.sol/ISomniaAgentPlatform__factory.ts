@@ -17,11 +17,6 @@ const _abi = [
         type: "uint256",
       },
       {
-        internalType: "bytes",
-        name: "data",
-        type: "bytes",
-      },
-      {
         internalType: "address",
         name: "cbContract",
         type: "address",
@@ -31,16 +26,34 @@ const _abi = [
         name: "cbSelector",
         type: "bytes4",
       },
+      {
+        internalType: "bytes",
+        name: "data",
+        type: "bytes",
+      },
     ],
     name: "createRequest",
     outputs: [
       {
-        internalType: "bytes32",
+        internalType: "uint256",
         name: "requestId",
-        type: "bytes32",
+        type: "uint256",
       },
     ],
     stateMutability: "payable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "getRequestDeposit",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
     type: "function",
   },
 ] as const;

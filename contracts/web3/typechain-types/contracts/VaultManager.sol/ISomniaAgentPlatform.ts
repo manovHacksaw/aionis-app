@@ -22,15 +22,25 @@ import type {
 } from "../../common";
 
 export interface ISomniaAgentPlatformInterface extends Interface {
-  getFunction(nameOrSignature: "createRequest"): FunctionFragment;
+  getFunction(
+    nameOrSignature: "createRequest" | "getRequestDeposit"
+  ): FunctionFragment;
 
   encodeFunctionData(
     functionFragment: "createRequest",
-    values: [BigNumberish, BytesLike, AddressLike, BytesLike]
+    values: [BigNumberish, AddressLike, BytesLike, BytesLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "getRequestDeposit",
+    values?: undefined
   ): string;
 
   decodeFunctionResult(
     functionFragment: "createRequest",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "getRequestDeposit",
     data: BytesLike
   ): Result;
 }
@@ -81,13 +91,15 @@ export interface ISomniaAgentPlatform extends BaseContract {
   createRequest: TypedContractMethod<
     [
       agentId: BigNumberish,
-      data: BytesLike,
       cbContract: AddressLike,
-      cbSelector: BytesLike
+      cbSelector: BytesLike,
+      data: BytesLike
     ],
-    [string],
+    [bigint],
     "payable"
   >;
+
+  getRequestDeposit: TypedContractMethod<[], [bigint], "view">;
 
   getFunction<T extends ContractMethod = ContractMethod>(
     key: string | FunctionFragment
@@ -98,13 +110,16 @@ export interface ISomniaAgentPlatform extends BaseContract {
   ): TypedContractMethod<
     [
       agentId: BigNumberish,
-      data: BytesLike,
       cbContract: AddressLike,
-      cbSelector: BytesLike
+      cbSelector: BytesLike,
+      data: BytesLike
     ],
-    [string],
+    [bigint],
     "payable"
   >;
+  getFunction(
+    nameOrSignature: "getRequestDeposit"
+  ): TypedContractMethod<[], [bigint], "view">;
 
   filters: {};
 }

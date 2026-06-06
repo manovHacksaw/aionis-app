@@ -8,12 +8,10 @@ export const ALGEBRA_POOL_ABI = [
     outputs: [
       { name: 'price',              type: 'uint160' },
       { name: 'tick',               type: 'int24'   },
-      { name: 'feeZto',             type: 'uint16'  },
-      { name: 'feeOtz',             type: 'uint16'  },
+      { name: 'fee',                type: 'uint16'  },
       { name: 'timepointIndex',     type: 'uint16'  },
       { name: 'communityFeeToken0', type: 'uint8'   },
       { name: 'communityFeeToken1', type: 'uint8'   },
-      { name: 'unlocked',           type: 'bool'    },
     ],
     stateMutability: 'view',
     type: 'function',

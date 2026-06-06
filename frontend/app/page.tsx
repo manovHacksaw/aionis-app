@@ -1,6 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import ConnectButton from "@/components/ConnectButton";
+import { usePrivy } from "@privy-io/react-auth";
 
 // ── Sparkline SVG ─────────────────────────────────────────────────────────────
 
@@ -119,78 +123,105 @@ function CopyIcon() {
   );
 }
 
-// ── Page ───────────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
-const NAV  = ["Dashboard", "Traders", "Portfolio", "Vault"];
-const TABS = ["Overview", "Advanced", "Activity"];
-const MODES = ["Copy Volume", "Supply", "Liquidity"];
+type Trader = {
+  rank:    number;
+  address: string;
+  trades:  number;
+  volume:  number;
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const NAV_ITEMS = [
+  { label: "Dashboard", href: "/" },
+  { label: "Traders",   href: "/traders" },
+  { label: "Portfolio", href: "/portfolio" },
+  { label: "Vault",     href: "/vault" },
+];
+const TABS   = ["Overview", "Advanced", "Activity"];
+const MODES  = ["Copy Volume", "Supply", "Liquidity"];
 const RANGES = ["1h", "6h", "24h", "7d", "1M"];
 
-const TRADERS = [
-  { rank: 1, addr: "0xAb58…eC9B", vol: "$28,400", tx: 134 },
-  { rank: 2, addr: "0x1Db3…6EE6", vol: "$22,100", tx: 89  },
-  { rank: 3, addr: "0xCA35…733c", vol: "$19,700", tx: 201 },
-  { rank: 4, addr: "0x1472…160C", vol: "$9,800",  tx: 57  },
-];
+const fmtAddr = (addr: string) => `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+const fmtVol  = (v: number) =>
+  v >= 1_000_000 ? `$${(v / 1_000_000).toFixed(2)}M`
+  : v >= 1000    ? `$${(v / 1000).toFixed(1)}k`
+  : `$${v.toFixed(0)}`;
+
+// ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function Home() {
-  const [nav,   setNav]   = useState("Dashboard");
-  const [tab,   setTab]   = useState("Overview");
-  const [mode,  setMode]  = useState("Copy Volume");
-  const [range, setRange] = useState("1M");
+  const router   = useRouter();
+  const pathname = usePathname();
+  const { authenticated } = usePrivy();
+
+  const [tab,     setTab]     = useState("Overview");
+  const [mode,    setMode]    = useState("Copy Volume");
+  const [range,   setRange]   = useState("1M");
+  const [traders, setTraders] = useState<Trader[]>([]);
+
+  useEffect(() => {
+    fetch("/api/traders/leaderboard?window=24h")
+      .then((r) => r.json())
+      .then((d) => { if (d.traders?.length) setTraders(d.traders.slice(0, 4)); })
+      .catch(() => {});
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#0d0d0d] text-white flex flex-col select-none" style={{ fontFamily: "var(--font-geist-sans, system-ui)" }}>
 
       {/* ── Navbar ─────────────────────────────────────────────────── */}
-      <header className="h-[52px] flex items-center px-5 gap-4 border-b border-zinc-800/70 sticky top-0 z-50 bg-[#0d0d0d]/96 backdrop-blur-md flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-md bg-amber-500 flex items-center justify-center flex-shrink-0">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="black" />
-            </svg>
-          </div>
-          <span className="text-[14px] font-semibold">Aionis</span>
+      <header className="sticky top-0 z-50 bg-[#0d0d0d] backdrop-blur-md flex-shrink-0">
+        <div className="h-[60px] flex items-center px-16 gap-8 max-w-[1440px] mx-auto w-full mt-8">
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2 flex-shrink-0">
+            <div className="w-6 h-6 rounded-md bg-amber-500 flex items-center justify-center flex-shrink-0">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="black" />
+              </svg>
+            </div>
+            <span className="text-[15px] font-semibold tracking-tight">Aionis</span>
+          </Link>
+
+          {/* Nav */}
+          <nav className="flex items-center gap-1">
+            {NAV_ITEMS.map(({ label, href }) => {
+              const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+              return (
+                <Link
+                  key={label}
+                  href={href}
+                  className={`px-4 py-1.5 rounded-full text-[13.5px] font-medium transition-all duration-200 cursor-pointer ${
+                    active ? "bg-amber-500 text-black" : "text-zinc-400 hover:text-white"
+                  }`}
+                >
+                  {label}
+                </Link>
+              );
+            })}
+          </nav>
+
+          <div className="flex-1" />
+
+          <button className="flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[13px] text-zinc-300 hover:text-white transition-colors cursor-pointer">
+            Somnia
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+
+          <ConnectButton />
         </div>
-
-        <nav className="flex items-center gap-0.5 bg-zinc-900 border border-zinc-800 rounded-full px-1 py-0.5">
-          {NAV.map(n => <Pill key={n} label={n} active={nav === n} onClick={() => setNav(n)} />)}
-        </nav>
-
-        <div className="flex-1" />
-
-        <button className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 rounded-full px-3 py-1 text-[12px] text-zinc-300 hover:border-zinc-700 transition-colors cursor-pointer">
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-          Somnia
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m6 9 6 6 6-6"/></svg>
-        </button>
-
-        <div className="relative">
-          <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-600" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-          </svg>
-          <input type="text" placeholder="Search trader or token…" className="bg-zinc-900 border border-zinc-800 rounded-full pl-8 pr-4 py-1 text-[12px] text-zinc-300 placeholder-zinc-600 w-48 focus:outline-none focus:border-amber-500/40 transition-colors" />
-        </div>
-
-        <button className="w-7 h-7 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-500 hover:text-white hover:border-zinc-700 transition-colors cursor-pointer">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-          </svg>
-        </button>
-
-        <button className="bg-amber-500 hover:bg-amber-400 text-black font-semibold text-[13px] px-4 py-1.5 rounded-full transition-colors cursor-pointer">
-          Connect Wallet
-        </button>
       </header>
 
       {/* ── Body ───────────────────────────────────────────────────── */}
-      <div className="flex flex-1 gap-3 p-3 w-full mx-auto overflow-hidden">
+      <div className="flex flex-1 gap-5 px-16 pt-8 pb-6 w-full max-w-[1440px] mx-auto overflow-hidden">
 
         {/* ── Main column ───────────────────────────────────────── */}
-        <div className="flex-1 flex flex-col gap-3 min-w-0 overflow-y-auto">
+        <div className="flex-1 flex flex-col gap-4 min-w-0 overflow-y-auto" style={{ scrollbarWidth: "none" }}>
 
           {/* Hero card */}
-          <div className="bg-[#141414] border border-zinc-800/80 rounded-2xl p-5">
+          <div className="bg-[#141414] border border-zinc-800/80 rounded-2xl p-6">
             <div className="flex items-center gap-3 mb-5">
               <div className="relative w-12 h-9 flex-shrink-0">
                 <div className="absolute left-0 top-0 w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 border-2 border-[#141414] flex items-center justify-center">
@@ -223,30 +254,67 @@ export default function Home() {
           </div>
 
           {/* Tabs + trader cards */}
-          <div className="bg-[#141414] border border-zinc-800/80 rounded-2xl p-5">
+          <div className="bg-[#141414] border border-zinc-800/80 rounded-2xl p-6">
             <div className="flex items-center gap-1 mb-4">
               {TABS.map(t => <Pill key={t} label={t} active={tab === t} onClick={() => setTab(t)} />)}
             </div>
             <div className="grid grid-cols-4 gap-2.5">
-              {TRADERS.map(({ rank, addr, vol, tx }) => (
-                <div key={rank} className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-4 hover:border-amber-500/30 transition-colors">
+              {traders.map((trader) => (
+                <div
+                  key={trader.address}
+                  onClick={() => router.push(`/vault/${trader.address}`)}
+                  className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-4 hover:border-amber-500/30 transition-colors cursor-pointer"
+                >
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Top Trader #{rank}</span>
+                    <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Top Trader #{trader.rank}</span>
                     <CopyIcon />
                   </div>
                   <div className="flex items-center gap-1.5 mb-3">
-                    <span className="font-mono text-[12px] text-white/85">{addr}</span>
-                    <span className="text-[10px] bg-amber-500/15 text-amber-400 px-1.5 py-0.5 rounded font-medium">{tx}tx</span>
+                    <a
+                      href={`https://explorer.somnia.network/address/${trader.address}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="font-mono text-[12px] text-white/85 hover:text-amber-400 hover:underline decoration-amber-500/50 transition-colors"
+                    >
+                      {fmtAddr(trader.address)}
+                    </a>
+                    <span className="text-[10px] bg-amber-500/15 text-amber-400 px-1.5 py-0.5 rounded font-medium">{trader.trades}tx</span>
                   </div>
                   <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-0.5">24h Volume</div>
-                  <div className="text-[14px] font-semibold">{vol}</div>
+                  <div className="text-[14px] font-semibold">{fmtVol(trader.volume)}</div>
                 </div>
               ))}
+              {traders.length === 0 && (
+                <>
+                  {[...Array(4)].map((_, i) => (
+                    <div
+                      key={i}
+                      className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-4 animate-pulse flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="h-3 bg-zinc-800/40 rounded w-20" />
+                          <div className="w-3.5 h-3.5 bg-zinc-800/40 rounded-sm" />
+                        </div>
+                        <div className="flex items-center gap-1.5 mb-3">
+                          <div className="h-4 bg-zinc-800/40 rounded w-24" />
+                          <div className="h-4 bg-zinc-800/40 rounded w-8" />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="h-3 bg-zinc-800/40 rounded w-16 mb-1.5" />
+                        <div className="h-4 bg-zinc-800/40 rounded w-20" />
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
           </div>
 
           {/* Volume chart */}
-          <div className="bg-[#141414] border border-zinc-800/80 rounded-2xl p-5">
+          <div className="bg-[#141414] border border-zinc-800/80 rounded-2xl p-6">
             <div className="flex items-start justify-between mb-1">
               <div>
                 <div className="flex items-center gap-1 text-[11px] text-zinc-500 mb-1">Total Copy Volume (USD) <InfoIcon /></div>
@@ -266,7 +334,7 @@ export default function Home() {
           </div>
 
           {/* Rate chart */}
-          <div className="bg-[#141414] border border-zinc-800/80 rounded-2xl p-5">
+          <div className="bg-[#141414] border border-zinc-800/80 rounded-2xl p-6">
             <div className="flex items-start justify-between mb-3">
               <div>
                 <div className="flex items-center gap-1 text-[11px] text-zinc-500 mb-1">Copy Rate <InfoIcon /></div>
@@ -300,14 +368,14 @@ export default function Home() {
         </div>
 
         {/* ── Sidebar ──────────────────────────────────────────── */}
-        <div className="w-[268px] flex-shrink-0 flex flex-col gap-3">
+        <div className="w-[280px] flex-shrink-0 flex flex-col gap-4">
 
-          {/* Supply card */}
+          {/* Supply cards */}
           {[
             { title: "Allocate to Vault (WSOMI)", spark: SPARK1, badge: "+$2,853" },
             { title: "Withdraw aUSD",             spark: SPARK2, badge: "+$1,100" },
           ].map(({ title, spark, badge }) => (
-            <div key={title} className="bg-[#141414] border border-zinc-800/80 rounded-2xl p-4">
+            <div key={title} className="bg-[#141414] border border-zinc-800/80 rounded-2xl p-5">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[12px] text-zinc-400">{title}</span>
                 <div className="w-6 h-6 rounded-full bg-amber-500/20 flex items-center justify-center">
@@ -364,9 +432,16 @@ export default function Home() {
           </div>
 
           {/* CTA */}
-          <button className="w-full bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-black font-semibold text-[14px] py-3 rounded-xl transition-colors cursor-pointer">
-            Connect Wallet
-          </button>
+          {authenticated ? (
+            <button
+              onClick={() => router.push("/traders")}
+              className="w-full bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-black font-semibold text-[14px] py-3 rounded-xl transition-colors cursor-pointer"
+            >
+              Browse Traders
+            </button>
+          ) : (
+            <ConnectButton fullWidth />
+          )}
 
           <p className="text-[10px] text-zinc-600 text-center leading-relaxed px-1">
             aUSD is locked in a smart contract on Somnia Testnet (chain 50312). A keeper executes copy trades on your behalf.

@@ -51,8 +51,8 @@ export function parseSwapLog(
   // side: BUY = user receives token0 (amount0 negative)
   const isBuy = log.amount0 < 0n;
   const side: TradeSide = isBuy ? 'BUY' : 'SELL';
-  const tokenIn  = isBuy ? token1.symbol : token0.symbol;
-  const tokenOut = isBuy ? token0.symbol : token1.symbol;
+  const tokenIn  = isBuy ? token1.address : token0.address;
+  const tokenOut = isBuy ? token0.address : token1.address;
 
   // USD value computation
   let usdValue: number;

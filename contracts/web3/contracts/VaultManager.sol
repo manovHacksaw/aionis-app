@@ -21,10 +21,12 @@ pragma solidity ^0.8.20;
 interface ISomniaAgentPlatform {
     function createRequest(
         uint256      agentId,
-        bytes        calldata data,
         address      cbContract,
-        bytes4       cbSelector
-    ) external payable returns (bytes32 requestId);
+        bytes4       cbSelector,
+        bytes        calldata data
+    ) external payable returns (uint256 requestId);
+
+    function getRequestDeposit() external view returns (uint256);
 }
 
 /**
@@ -73,17 +75,19 @@ contract VaultManager {
     address public constant AGENT_PLATFORM =
         0x037Bb9C718F3f7fe5eCBDB0b600D607b52706776;
 
-    uint256 public constant JSON_API_AGENT_ID = 1;
-    uint256 public constant LLM_AGENT_ID      = 2;
+    uint256 public constant JSON_API_AGENT_ID = 13174292974160097713;
+    uint256 public constant LLM_AGENT_ID      = 12847293847561029384;
 
-    uint256 public constant MAX_TRADE_AGE   = 5 minutes;
+    uint256 public constant MAX_TRADE_AGE      = 5 minutes;
+    uint256 public constant PIPELINE_TIMEOUT   = 10 minutes;
     uint8   public constant MIN_COPY_SCORE  = 10;
     uint256 public constant MIN_TRADE_AUSD  = 1e6;      // 1 aUSD minimum per trade
 
     // ── Immutables ────────────────────────────────────────────────────────────
 
     address public immutable AUSD;
-    string  public           API_BASE;        // set in constructor, not constant (easier to upgrade)
+    address public           owner;
+    string  public           API_BASE;
     string  public           PRICE_API_BASE;
 
     // ── Enums ─────────────────────────────────────────────────────────────────
@@ -138,13 +142,13 @@ contract VaultManager {
     // ── Agent pipeline ────────────────────────────────────────────────────────
 
     /// @dev requestId → vaultId  (watcher and strategist callbacks share this)
-    mapping(bytes32  => bytes32)      public requestToVault;
+    mapping(uint256  => bytes32)      public requestToVault;
 
     /// @dev vaultId → raw trade bytes carried from watcher → strategist callback
     mapping(bytes32  => bytes)        private pendingTradeData;
 
-    /// @dev One pipeline at a time per vault (prevents double-firing)
-    mapping(bytes32  => bool)         public pipelineActive;
+    /// @dev Timestamp when pipeline started; 0 = idle. Auto-expires after PIPELINE_TIMEOUT.
+    mapping(bytes32  => uint256)      public pipelineActiveAt;
 
     // ── Price state ───────────────────────────────────────────────────────────
 
@@ -152,7 +156,7 @@ contract VaultManager {
     mapping(address  => uint256)      public latestPrice;
 
     /// @dev requestId → token address  (price callback lookup)
-    mapping(bytes32  => address)      private priceRequestToToken;
+    mapping(uint256  => address)      private priceRequestToToken;
 
     /// @dev position counter for unique IDs
     uint256 private _positionNonce;
@@ -175,18 +179,18 @@ contract VaultManager {
     event AllowlistAdded(bytes32 indexed vaultId, address[] tokens);
     event AllowlistRemoved(bytes32 indexed vaultId, address[] tokens);
 
-    event WatcherRequested(bytes32 indexed requestId, bytes32 indexed vaultId);
+    event WatcherRequested(uint256 indexed requestId, bytes32 indexed vaultId);
     event WatcherResponse(
-        bytes32 indexed requestId,
+        uint256 indexed requestId,
         bytes32 indexed vaultId,
         address tokenIn,
         address tokenOut,
         uint256 usdValue,
         uint256 tradeTimestamp
     );
-    event StrategistRequested(bytes32 indexed requestId, bytes32 indexed vaultId);
+    event StrategistRequested(uint256 indexed requestId, bytes32 indexed vaultId);
     event StrategistResponse(
-        bytes32 indexed requestId,
+        uint256 indexed requestId,
         bytes32 indexed vaultId,
         uint8   score,
         bool    willExecute
@@ -217,6 +221,11 @@ contract VaultManager {
 
     // ── Modifiers ─────────────────────────────────────────────────────────────
 
+    modifier onlyOwner() {
+        require(msg.sender == owner, "VM: not owner");
+        _;
+    }
+
     modifier onlyAgentPlatform() {
         require(msg.sender == AGENT_PLATFORM, "VM: caller is not agent platform");
         _;
@@ -234,9 +243,23 @@ contract VaultManager {
 
     constructor(address _ausd, string memory _apiBase, string memory _priceApiBase) {
         require(_ausd != address(0), "VM: zero aUSD address");
-        AUSD          = _ausd;
-        API_BASE      = _apiBase;
+        AUSD           = _ausd;
+        owner          = msg.sender;
+        API_BASE       = _apiBase;
         PRICE_API_BASE = _priceApiBase;
+    }
+
+    function setApiBase(string calldata base) external onlyOwner {
+        API_BASE = base;
+    }
+
+    function setPriceApiBase(string calldata base) external onlyOwner {
+        PRICE_API_BASE = base;
+    }
+
+    function transferOwnership(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "VM: zero address");
+        owner = newOwner;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -430,19 +453,30 @@ contract VaultManager {
         VaultConfig storage v = vaults[id];
 
         require(v.status == VaultStatus.ACTIVE,    "VM: vault not active");
-        require(!pipelineActive[id],               "VM: pipeline already running");
+        require(
+            pipelineActiveAt[id] == 0 ||
+            block.timestamp > pipelineActiveAt[id] + PIPELINE_TIMEOUT,
+            "VM: pipeline already running"
+        );
         require(_freeBalance(v) > MIN_TRADE_AUSD,  "VM: insufficient free balance");
 
-        pipelineActive[id] = true;
+        pipelineActiveAt[id] = block.timestamp;
+
+        // Reserve enough for JSON API call + LLM call.
+        // JSON API: opDeposit + 0.09 STT (0.03/validator × 3), LLM: opDeposit + 0.21 STT (0.07/validator × 3).
+        uint256 opDeposit = ISomniaAgentPlatform(AGENT_PLATFORM).getRequestDeposit();
+        uint256 jsonFee   = opDeposit + 0.09 ether;
+        uint256 llmFee    = opDeposit + 0.21 ether;
+        require(msg.value >= jsonFee + llmFee, "VM: insufficient deposit (need >= jsonFee+llmFee)");
 
         string memory url = string.concat(API_BASE, _toHexString(leader), "/latest-swap");
         bytes memory requestData = abi.encode(url, "$.swap");
 
-        bytes32 requestId = ISomniaAgentPlatform(AGENT_PLATFORM).createRequest{value: msg.value}(
+        uint256 requestId = ISomniaAgentPlatform(AGENT_PLATFORM).createRequest{value: jsonFee}(
             JSON_API_AGENT_ID,
-            requestData,
             address(this),
-            this.onWatcherResponse.selector
+            this.onWatcherResponse.selector,
+            requestData
         );
 
         requestToVault[requestId] = id;
@@ -463,7 +497,7 @@ contract VaultManager {
      *            uint256 tradePrice, uint256 tradeTimestamp)
      */
     function onWatcherResponse(
-        bytes32        requestId,
+        uint256        requestId,
         bytes calldata response
     ) external onlyAgentPlatform {
         bytes32 id = requestToVault[requestId];
@@ -476,7 +510,7 @@ contract VaultManager {
             address tokenIn,
             address tokenOut,
             uint256 usdValue,
-            uint256 tradePrice,
+            ,
             uint256 tradeTimestamp
         ) = abi.decode(response, (address, address, uint256, uint256, uint256));
 
@@ -485,7 +519,7 @@ contract VaultManager {
         // ── Stale trade guard ─────────────────────────────────────────────────
         if (block.timestamp - tradeTimestamp > MAX_TRADE_AGE) {
             emit TradeSkipped(id, "stale trade");
-            pipelineActive[id] = false;
+            pipelineActiveAt[id] = 0;
             return;
         }
 
@@ -498,7 +532,7 @@ contract VaultManager {
         // ── Allowlist check ───────────────────────────────────────────────────
         if (!_inAllowlist(v.allowlist, tradedToken)) {
             emit TradeSkipped(id, "token not in allowlist");
-            pipelineActive[id] = false;
+            pipelineActiveAt[id] = 0;
             return;
         }
 
@@ -506,7 +540,7 @@ contract VaultManager {
         uint256 freeBalance = _freeBalance(v);
         if (freeBalance <= MIN_TRADE_AUSD) {
             emit TradeSkipped(id, "insufficient free balance");
-            pipelineActive[id] = false;
+            pipelineActiveAt[id] = 0;
             return;
         }
 
@@ -523,11 +557,15 @@ contract VaultManager {
             latestPrice[tradedToken]
         );
 
-        bytes32 llmRequestId = ISomniaAgentPlatform(AGENT_PLATFORM).createRequest(
+        // Use contract balance (pre-funded by checkLeaderActivity msg.value) for LLM fee
+        uint256 llmOpDeposit = ISomniaAgentPlatform(AGENT_PLATFORM).getRequestDeposit();
+        uint256 llmFee       = llmOpDeposit + 0.21 ether;
+
+        uint256 llmRequestId = ISomniaAgentPlatform(AGENT_PLATFORM).createRequest{value: llmFee}(
             LLM_AGENT_ID,
-            abi.encode(prompt),
             address(this),
-            this.onStrategistResponse.selector
+            this.onStrategistResponse.selector,
+            abi.encode(prompt)
         );
 
         requestToVault[llmRequestId] = id;
@@ -546,7 +584,7 @@ contract VaultManager {
      * @dev    Response ABI-encoded as uint8 (0-100 copy score).
      */
     function onStrategistResponse(
-        bytes32        requestId,
+        uint256        requestId,
         bytes calldata response
     ) external onlyAgentPlatform {
         bytes32 id = requestToVault[requestId];
@@ -562,14 +600,14 @@ contract VaultManager {
         if (!willExecute) {
             emit TradeSkipped(id, "score below threshold");
             delete pendingTradeData[id];
-            pipelineActive[id] = false;
+            pipelineActiveAt[id] = 0;
             return;
         }
 
         _openPosition(id, score);
 
         delete pendingTradeData[id];
-        pipelineActive[id] = false;
+        pipelineActiveAt[id] = 0;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -697,14 +735,17 @@ contract VaultManager {
     function updatePrice(address token) external payable {
         require(token != address(0), "VM: zero token");
 
+        uint256 opDeposit = ISomniaAgentPlatform(AGENT_PLATFORM).getRequestDeposit();
+        require(msg.value >= opDeposit + 0.09 ether, "VM: insufficient deposit for price update");
+
         string memory url = string.concat(PRICE_API_BASE, _toHexString(token));
         bytes memory requestData = abi.encode(url, "$.price");
 
-        bytes32 requestId = ISomniaAgentPlatform(AGENT_PLATFORM).createRequest{value: msg.value}(
+        uint256 requestId = ISomniaAgentPlatform(AGENT_PLATFORM).createRequest{value: msg.value}(
             JSON_API_AGENT_ID,
-            requestData,
             address(this),
-            this.onPriceUpdate.selector
+            this.onPriceUpdate.selector,
+            requestData
         );
 
         priceRequestToToken[requestId] = token;
@@ -715,7 +756,7 @@ contract VaultManager {
      * @dev    Response ABI-encoded as uint256 (price × 1e10).
      */
     function onPriceUpdate(
-        bytes32        requestId,
+        uint256        requestId,
         bytes calldata response
     ) external onlyAgentPlatform {
         address token = priceRequestToToken[requestId];

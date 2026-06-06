@@ -107,7 +107,7 @@ export default function VaultPage({ params }: PageProps) {
   const cooldownMin = Math.ceil(cooldownSeconds / 60);
 
   return (
-    <div className="min-h-screen bg-black text-white px-6 md:px-16 py-12 max-w-6xl mx-auto w-full select-none font-sans">
+    <div className="min-h-screen text-white px-16 py-8 max-w-[1440px] mx-auto w-full select-none font-sans">
       <div className="mb-8">
         <Link href="/traders" className="text-white/40 hover:text-white text-sm transition-colors flex items-center gap-2 w-fit">
           <span>←</span> Traders
@@ -118,7 +118,7 @@ export default function VaultPage({ params }: PageProps) {
 
         {/* Left: Leader Card */}
         <div className="lg:col-span-5 space-y-4">
-          <div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-6">
+          <div className="bg-[#141414] border border-zinc-800/80 rounded-2xl p-6">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex-shrink-0" />
@@ -177,7 +177,7 @@ export default function VaultPage({ params }: PageProps) {
 
           {/* aUSD Balance card */}
           {isConnected && (
-            <div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl px-5 py-4 flex items-center justify-between">
+            <div className="bg-[#141414] border border-zinc-800/80 rounded-2xl px-5 py-4 flex items-center justify-between">
               <div>
                 <p className="text-[10px] uppercase tracking-wider text-white/40 mb-1">aUSD Balance</p>
                 <p className="text-[17px] font-light tabular-nums text-white">
@@ -213,7 +213,7 @@ export default function VaultPage({ params }: PageProps) {
 
           <form
             onSubmit={handleSubmit}
-            className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-6 space-y-6"
+            className="bg-[#141414] border border-zinc-800/80 rounded-2xl p-6 space-y-6"
           >
             <div>
               <h2 className="text-[20px] font-light tracking-tight text-white mb-1">Create Vault</h2>
@@ -237,7 +237,7 @@ export default function VaultPage({ params }: PageProps) {
                   step="any"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-[13px] text-white focus:outline-none focus:border-white/30 transition-all font-mono"
+                  className="w-full bg-white/[0.03] border border-zinc-800 rounded-xl px-4 py-3 text-[13px] text-white focus:outline-none focus:border-white/30 transition-all font-mono"
                   placeholder="0.00"
                 />
                 <button

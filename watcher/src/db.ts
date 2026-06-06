@@ -53,6 +53,8 @@ export interface LeaderSwap {
 export interface Db {
   getAllLeaders(): Promise<`0x${string}`[]>;
   getFollowers(leader: `0x${string}`): Promise<`0x${string}`[]>;
+  getOnChainFollowers(leader: string): Promise<{ follower: string; allowlist: string[] }[]>;
+  getAllOnChainLeaders(): Promise<string[]>;
   recordLeaderSwap(swap: LeaderSwap): Promise<void>;
   getLatestLeaderSwap(leader: string): Promise<LeaderSwap | null>;
   getVault(follower: `0x${string}`): Promise<Vault | null>;
@@ -123,6 +125,26 @@ export function createPrismaDb(): Db {
         select: { follower: true },
       });
       return rows.map((r) => r.follower as `0x${string}`);
+    },
+
+    async getAllOnChainLeaders() {
+      const rows = await prisma.userVault.findMany({
+        where:  { status: 'ACTIVE' },
+        select: { leader: true },
+        distinct: ['leader'],
+      });
+      return rows.map((r) => r.leader);
+    },
+
+    async getOnChainFollowers(leader) {
+      const rows = await prisma.userVault.findMany({
+        where:  { leader: leader.toLowerCase(), status: 'ACTIVE' },
+        select: { follower: true, allowlistJson: true },
+      });
+      return rows.map((r) => ({
+        follower:  r.follower,
+        allowlist: (r.allowlistJson as string[]).map((a) => a.toLowerCase()),
+      }));
     },
 
     async recordLeaderSwap(swap) {
