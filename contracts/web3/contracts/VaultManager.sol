@@ -827,13 +827,17 @@ contract VaultManager {
         uint256 maxTrade,
         uint256 currentPrice
     ) internal view returns (string memory) {
-        uint256 tradeAgeSec   = block.timestamp - tradeTimestamp;
-        uint256 freePct       = ausdLocked > 0 ? (freeBalance * 100) / ausdLocked : 0;
-        uint256 usdValueWhole = usdValue   / 1e6;
-        uint256 freeWhole     = freeBalance / 1e6;
-        uint256 lockedWhole   = ausdLocked  / 1e6;
-        uint256 maxWhole      = maxTrade    / 1e6;
-        uint256 priceWhole    = currentPrice / 1e10;
+        uint256 tradeAgeSec      = block.timestamp - tradeTimestamp;
+        uint256 freePct          = ausdLocked  > 0 ? (freeBalance * 100) / ausdLocked  : 0;
+        uint256 tradeVsVaultPct  = ausdLocked  > 0 ? (usdValue    * 100) / ausdLocked  : 0;
+        uint256 tradeVsFreePct   = freeBalance > 0 ? (usdValue    * 100) / freeBalance : 0;
+        uint256 allocAtFullScore = maxTrade / 1e6;
+        uint256 allocAt50        = maxTrade / 2e6;
+        uint256 usdValueWhole    = usdValue    / 1e6;
+        uint256 freeWhole        = freeBalance / 1e6;
+        uint256 lockedWhole      = ausdLocked  / 1e6;
+        uint256 maxWhole         = maxTrade    / 1e6;
+        uint256 priceWhole       = currentPrice / 1e10;
 
         string memory header = string.concat(
             "You are a risk management engine for Aionis, a copy-trading platform on Somnia.\n",
@@ -847,25 +851,28 @@ contract VaultManager {
             "  100      = maximum confidence  (full max-per-trade allocation)\n\n",
             "ALLOCATION FORMULA:\n",
             "  allocation = (score / 100) x max_per_trade\n",
-            "  Example: score=60, max_per_trade=$200 -> $120 allocated from vault\n\n"
+            "  At score=100 -> $", _uint2str(allocAtFullScore), " allocated\n",
+            "  At score=50  -> $", _uint2str(allocAt50),        " allocated\n\n"
         );
 
         string memory tradeSection = string.concat(
             "--- TRADE ---\n",
-            "Leader wallet:    ", _toHexString(leader),        "\n",
-            "Token bought:     ", _toHexString(tradedToken),   "\n",
-            "Trade USD value:  $", _uint2str(usdValueWhole),   "\n",
-            "Trade age:        ", _uint2str(tradeAgeSec),      "s ago\n",
-            "Current price:    $", _uint2str(priceWhole),      " (x1e10 units)\n\n"
+            "Leader wallet:             ", _toHexString(leader),             "\n",
+            "Token bought:              ", _toHexString(tradedToken),        "\n",
+            "Trade USD value:           $", _uint2str(usdValueWhole),        "\n",
+            "Trade age:                 ",  _uint2str(tradeAgeSec),          "s ago\n",
+            "Current token price:       $", _uint2str(priceWhole),           " (x1e10 units)\n",
+            "Trade size vs follower vault: ", _uint2str(tradeVsVaultPct),    "% of vault\n",
+            "Trade size vs free balance:   ", _uint2str(tradeVsFreePct),     "% of free capital\n\n"
         );
 
         string memory vaultSection = string.concat(
             "--- FOLLOWER VAULT ---\n",
-            "Vault total:      $", _uint2str(lockedWhole),     "\n",
+            "Vault total:      $", _uint2str(lockedWhole),                   "\n",
             "Free balance:     $", _uint2str(freeWhole),
-                                   " (", _uint2str(freePct),   "% of vault)\n",
-            "Max per trade:    $", _uint2str(maxWhole),        "\n",
-            "Risk tolerance:   ",  _uint2str(riskLevel),       "/10\n\n"
+                                   " (", _uint2str(freePct),                 "% of vault)\n",
+            "Max per trade:    $", _uint2str(maxWhole),                      "\n",
+            "Risk tolerance:   ",  _uint2str(riskLevel),                     "/10\n\n"
         );
 
         string memory rules = string.concat(
@@ -881,12 +888,22 @@ contract VaultManager {
             "  Risk 7-8  -> max score 85\n",
             "  Risk 9-10 -> max score 100\n\n",
             "FREE BALANCE PENALTIES:\n",
-            "  Free balance < 10% of vault  -> reduce score by 30%\n",
-            "  Trade size > 10x free balance -> reduce score by 50%\n\n",
-            "CONFIDENCE BOOSTERS:\n",
-            "  Trade age < 10s              -> add up to 10 to score (very fresh)\n",
-            "  Trade USD value > $500       -> significant move, weight higher\n",
-            "  Trade USD value > $1000      -> major position by leader\n\n",
+            "  Free balance < 10% of vault         -> reduce score by 30%\n",
+            "  Trade size > 50% of free balance    -> reduce score by 20% (large relative exposure)\n",
+            "  Trade size > 100% of free balance   -> return 0 (cannot afford)\n\n",
+            "SIGNAL STRENGTH (use trade size vs follower vault, NOT raw dollars):\n",
+            "  Trade < 5% of follower vault        -> weak signal, lean conservative\n",
+            "  Trade 5-20% of follower vault       -> moderate signal\n",
+            "  Trade > 20% of follower vault       -> strong signal, leader is making a big move\n",
+            "  Trade > 50% of follower vault       -> very strong signal\n\n",
+            "FRESHNESS BONUS:\n",
+            "  Trade age < 10s                     -> add up to 10 to final score\n",
+            "  Trade age 10-30s                    -> no adjustment\n",
+            "  Trade age 30-120s                   -> reduce score by 10\n\n",
+            "IMPORTANT: Do NOT treat $1000 as inherently significant.\n",
+            "  A $1000 trade is strong if the follower vault is $2000 (50%).\n",
+            "  A $1000 trade is weak if the follower vault is $100000 (1%).\n",
+            "  Always reason in percentages, not absolute dollar amounts.\n\n",
             "Respond with a single integer 0-100."
         );
 
