@@ -58,10 +58,6 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.AUSD__factory>;
     getContractFactory(
-      name: "AUSDC",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.AUSDC__factory>;
-    getContractFactory(
       name: "FollowerRegistry",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.FollowerRegistry__factory>;
@@ -69,6 +65,18 @@ declare module "hardhat/types/runtime" {
       name: "SomniaGreeting",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.SomniaGreeting__factory>;
+    getContractFactory(
+      name: "IaUSD",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.IaUSD__factory>;
+    getContractFactory(
+      name: "ISomniaAgentPlatform",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.ISomniaAgentPlatform__factory>;
+    getContractFactory(
+      name: "VaultManager",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.VaultManager__factory>;
 
     getContractAt(
       name: "IERC1155Errors",
@@ -126,11 +134,6 @@ declare module "hardhat/types/runtime" {
       signer?: ethers.Signer
     ): Promise<Contracts.AUSD>;
     getContractAt(
-      name: "AUSDC",
-      address: string | ethers.Addressable,
-      signer?: ethers.Signer
-    ): Promise<Contracts.AUSDC>;
-    getContractAt(
       name: "FollowerRegistry",
       address: string | ethers.Addressable,
       signer?: ethers.Signer
@@ -140,6 +143,21 @@ declare module "hardhat/types/runtime" {
       address: string | ethers.Addressable,
       signer?: ethers.Signer
     ): Promise<Contracts.SomniaGreeting>;
+    getContractAt(
+      name: "IaUSD",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.IaUSD>;
+    getContractAt(
+      name: "ISomniaAgentPlatform",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.ISomniaAgentPlatform>;
+    getContractAt(
+      name: "VaultManager",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.VaultManager>;
 
     deployContract(
       name: "IERC1155Errors",
@@ -186,10 +204,6 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.AUSD>;
     deployContract(
-      name: "AUSDC",
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.AUSDC>;
-    deployContract(
       name: "FollowerRegistry",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.FollowerRegistry>;
@@ -197,6 +211,18 @@ declare module "hardhat/types/runtime" {
       name: "SomniaGreeting",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.SomniaGreeting>;
+    deployContract(
+      name: "IaUSD",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.IaUSD>;
+    deployContract(
+      name: "ISomniaAgentPlatform",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.ISomniaAgentPlatform>;
+    deployContract(
+      name: "VaultManager",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.VaultManager>;
 
     deployContract(
       name: "IERC1155Errors",
@@ -254,11 +280,6 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.AUSD>;
     deployContract(
-      name: "AUSDC",
-      args: any[],
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.AUSDC>;
-    deployContract(
       name: "FollowerRegistry",
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
@@ -268,6 +289,21 @@ declare module "hardhat/types/runtime" {
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.SomniaGreeting>;
+    deployContract(
+      name: "IaUSD",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.IaUSD>;
+    deployContract(
+      name: "ISomniaAgentPlatform",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.ISomniaAgentPlatform>;
+    deployContract(
+      name: "VaultManager",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.VaultManager>;
 
     // default types
     getContractFactory(

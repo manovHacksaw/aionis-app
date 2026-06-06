@@ -26,9 +26,11 @@ export type { ISomniaAgentPlatform } from "./contracts/AionisAgentManager.sol/IS
 export { ISomniaAgentPlatform__factory } from "./factories/contracts/AionisAgentManager.sol/ISomniaAgentPlatform__factory";
 export type { AUSD } from "./contracts/AUSD";
 export { AUSD__factory } from "./factories/contracts/AUSD__factory";
-export type { AUSDC } from "./contracts/AUSDC";
-export { AUSDC__factory } from "./factories/contracts/AUSDC__factory";
 export type { FollowerRegistry } from "./contracts/FollowerRegistry";
 export { FollowerRegistry__factory } from "./factories/contracts/FollowerRegistry__factory";
 export type { SomniaGreeting } from "./contracts/SomniaGreeting";
 export { SomniaGreeting__factory } from "./factories/contracts/SomniaGreeting__factory";
+export type { IaUSD } from "./contracts/VaultManager.sol/IaUSD";
+export { IaUSD__factory } from "./factories/contracts/VaultManager.sol/IaUSD__factory";
+export type { VaultManager } from "./contracts/VaultManager.sol/VaultManager";
+export { VaultManager__factory } from "./factories/contracts/VaultManager.sol/VaultManager__factory";

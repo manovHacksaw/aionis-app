@@ -3,7 +3,8 @@
 /* eslint-disable */
 import type * as aionisAgentManagerSol from "./AionisAgentManager.sol";
 export type { aionisAgentManagerSol };
+import type * as vaultManagerSol from "./VaultManager.sol";
+export type { vaultManagerSol };
 export type { FollowerRegistry } from "./FollowerRegistry";
 export type { SomniaGreeting } from "./SomniaGreeting";
 export type { AUSD } from "./AUSD";
-export type { AUSDC } from "./AUSDC";

@@ -2,7 +2,7 @@
 /* tslint:disable */
 /* eslint-disable */
 export * as aionisAgentManagerSol from "./AionisAgentManager.sol";
+export * as vaultManagerSol from "./VaultManager.sol";
 export { FollowerRegistry__factory } from "./FollowerRegistry__factory";
 export { SomniaGreeting__factory } from "./SomniaGreeting__factory";
 export { AUSD__factory } from "./AUSD__factory";
-export { AUSDC__factory } from "./AUSDC__factory";
