@@ -519,7 +519,8 @@ contract VaultManager {
 
         string memory prompt = _buildPrompt(
             v.leader, tradedToken, usdValue, tradeTimestamp,
-            v.riskLevel, v.ausdLocked, freeBalance, maxTrade
+            v.riskLevel, v.ausdLocked, freeBalance, maxTrade,
+            latestPrice[tradedToken]
         );
 
         bytes32 llmRequestId = ISomniaAgentPlatform(AGENT_PLATFORM).createRequest(
@@ -823,26 +824,73 @@ contract VaultManager {
         uint8   riskLevel,
         uint256 ausdLocked,
         uint256 freeBalance,
-        uint256 maxTrade
+        uint256 maxTrade,
+        uint256 currentPrice
     ) internal view returns (string memory) {
-        return string.concat(
-            "You are a copy-trading risk engine. Respond with ONLY a single integer 0-100. ",
-            "0 = skip. 1-100 = copy at that percentage of max allocation.\n\n",
-            "Leader: ",           _toHexString(leader),                          "\n",
-            "Token bought: ",     _toHexString(tradedToken),                     "\n",
-            "Trade USD value: $", _uint2str(usdValue / 1e6),                     "\n",
-            "Trade age (sec): ",  _uint2str(block.timestamp - tradeTimestamp),   "\n",
-            "Risk level: ",       _uint2str(riskLevel), "/10\n",
-            "Vault total: $",     _uint2str(ausdLocked  / 1e6),                  "\n",
-            "Free balance: $",    _uint2str(freeBalance / 1e6),                  "\n",
-            "Max per trade: $",   _uint2str(maxTrade    / 1e6),                  "\n\n",
-            "Rules:\n",
-            "- If free balance < $1 return 0.\n",
-            "- Risk 1-3: max score 40.\n",
-            "- Risk 7-10: can return up to 100.\n",
-            "- Consider vault free balance vs trade size.\n",
-            "- Respond with a single integer only."
+        uint256 tradeAgeSec   = block.timestamp - tradeTimestamp;
+        uint256 freePct       = ausdLocked > 0 ? (freeBalance * 100) / ausdLocked : 0;
+        uint256 usdValueWhole = usdValue   / 1e6;
+        uint256 freeWhole     = freeBalance / 1e6;
+        uint256 lockedWhole   = ausdLocked  / 1e6;
+        uint256 maxWhole      = maxTrade    / 1e6;
+        uint256 priceWhole    = currentPrice / 1e10;
+
+        string memory header = string.concat(
+            "You are a risk management engine for Aionis, a copy-trading platform on Somnia.\n",
+            "Evaluate the trade below and decide what percentage of the follower vault to allocate.\n\n",
+            "OUTPUT: Respond with ONLY a single integer 0-100. No explanation. No text. Just the number.\n\n",
+            "SCORING SCALE:\n",
+            "  0        = skip this trade entirely\n",
+            "  1-33     = low confidence  (small allocation)\n",
+            "  34-66    = medium confidence  (moderate allocation)\n",
+            "  67-99    = high confidence  (significant allocation)\n",
+            "  100      = maximum confidence  (full max-per-trade allocation)\n\n",
+            "ALLOCATION FORMULA:\n",
+            "  allocation = (score / 100) x max_per_trade\n",
+            "  Example: score=60, max_per_trade=$200 -> $120 allocated from vault\n\n"
         );
+
+        string memory tradeSection = string.concat(
+            "--- TRADE ---\n",
+            "Leader wallet:    ", _toHexString(leader),        "\n",
+            "Token bought:     ", _toHexString(tradedToken),   "\n",
+            "Trade USD value:  $", _uint2str(usdValueWhole),   "\n",
+            "Trade age:        ", _uint2str(tradeAgeSec),      "s ago\n",
+            "Current price:    $", _uint2str(priceWhole),      " (x1e10 units)\n\n"
+        );
+
+        string memory vaultSection = string.concat(
+            "--- FOLLOWER VAULT ---\n",
+            "Vault total:      $", _uint2str(lockedWhole),     "\n",
+            "Free balance:     $", _uint2str(freeWhole),
+                                   " (", _uint2str(freePct),   "% of vault)\n",
+            "Max per trade:    $", _uint2str(maxWhole),        "\n",
+            "Risk tolerance:   ",  _uint2str(riskLevel),       "/10\n\n"
+        );
+
+        string memory rules = string.concat(
+            "--- RULES (apply strictly in order) ---\n",
+            "1. If free balance < $1 -> return 0.\n",
+            "2. If trade age > 120s -> return 0 (stale signal).\n",
+            "3. If trade USD value < $5 -> return 0 (noise trade, ignore).\n",
+            "4. If free balance < $10 -> return 0 (vault nearly empty).\n\n",
+            "RISK SCORE CEILING:\n",
+            "  Risk 1-2  -> max score 20\n",
+            "  Risk 3-4  -> max score 40\n",
+            "  Risk 5-6  -> max score 65\n",
+            "  Risk 7-8  -> max score 85\n",
+            "  Risk 9-10 -> max score 100\n\n",
+            "FREE BALANCE PENALTIES:\n",
+            "  Free balance < 10% of vault  -> reduce score by 30%\n",
+            "  Trade size > 10x free balance -> reduce score by 50%\n\n",
+            "CONFIDENCE BOOSTERS:\n",
+            "  Trade age < 10s              -> add up to 10 to score (very fresh)\n",
+            "  Trade USD value > $500       -> significant move, weight higher\n",
+            "  Trade USD value > $1000      -> major position by leader\n\n",
+            "Respond with a single integer 0-100."
+        );
+
+        return string.concat(header, tradeSection, vaultSection, rules);
     }
 
     function _freeBalance(VaultConfig storage v) internal view returns (uint256) {
