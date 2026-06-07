@@ -174,6 +174,12 @@ contract VaultManager {
     event VaultPaused(bytes32 indexed vaultId);
     event VaultResumed(bytes32 indexed vaultId);
     event VaultClosed(bytes32 indexed vaultId);
+    event VaultReopened(
+        address indexed follower,
+        address indexed leader,
+        bytes32 indexed vaultId,
+        uint256 amount
+    );
     event KeeperSet(address indexed follower, address indexed keeper);
 
     event AllowlistAdded(bytes32 indexed vaultId, address[] tokens);
@@ -366,6 +372,44 @@ contract VaultManager {
 
         emit VaultWithdrawn(id, balance);
         emit VaultClosed(id);
+    }
+
+    /**
+     * @notice Reopen a previously withdrawn (CLOSED) vault for the same leader,
+     *         with a fresh deposit and config. The vaultId is derived solely from
+     *         (follower, leader), so a closed vault can never be re-created via
+     *         createVault — this is the only way back for that pair.
+     */
+    function reopenVault(
+        address            leader,
+        uint256            amount,
+        uint8              riskLevel,
+        uint8              maxPerTradePct,
+        address[] calldata allowlist
+    ) external {
+        require(riskLevel >= 1 && riskLevel <= 10,            "VM: riskLevel 1-10");
+        require(maxPerTradePct >= 1 && maxPerTradePct <= 100, "VM: maxPct 1-100");
+        require(allowlist.length > 0,                         "VM: allowlist empty, no trades will copy");
+        require(amount > 0,                                   "VM: zero deposit");
+
+        bytes32 id = vaultId(msg.sender, leader);
+        VaultConfig storage v = vaults[id];
+        require(v.follower == msg.sender,         "VM: not your vault");
+        require(v.status == VaultStatus.CLOSED,   "VM: not closed");
+
+        require(
+            IaUSD(AUSD).transferFrom(msg.sender, address(this), amount),
+            "VM: deposit failed"
+        );
+
+        v.ausdLocked     = amount;
+        v.ausdAllocated  = 0;
+        v.riskLevel      = riskLevel;
+        v.maxPerTradePct = maxPerTradePct;
+        v.allowlist      = allowlist;
+        v.status         = VaultStatus.ACTIVE;
+
+        emit VaultReopened(msg.sender, leader, id, amount);
     }
 
     /**

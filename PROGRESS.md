@@ -4,7 +4,7 @@
 
 | Contract | Address |
 |----------|---------|
-| VaultManager (current) | `0x5f0EA2dd5BE70F22375D42034d543C3f91B49667` |
+| VaultManager (current) | `0x3672E7703B6A446d2c38878A227ca2f32Fa5d408` |
 | aUSD | `0xaE2DE61038F8086293134e33615C7761933F81E4` |
 | Keeper wallet | `0x842056bb847BCe24bEb6D0d08703024DBa94CCE9` |
 | Deployer wallet | `0x7DcF628f79676ec5755Da9EF1fb312460E1599E4` |
@@ -14,6 +14,7 @@
 - `0x070f3A3BceAB706dD1cFB64cF14854c14e109e0F` — first deploy
 - `0x93fF8B81111BaBc5001a9cC6385895f1AE5A2E74` — second deploy (stuck pipeline)
 - `0x24108C322FeDD9e86B447Bb74f641483454d25ab` — third deploy (localhost API_BASE bug)
+- `0x5f0EA2dd5BE70F22375D42034d543C3f91B49667` — fourth deploy (vault got CLOSED via `withdraw()`, vaultId has no nonce so the (follower,leader) pair was permanently dead — see "Resolved This Morning")
 
 ---
 
@@ -28,15 +29,21 @@
 
 ## Infrastructure
 
-- **ngrok**: `https://garnish-hardcopy-annotate.ngrok-free.dev` → `http://localhost:3001`
+- **ngrok**: `https://garnish-hardcopy-annotate.ngrok-free.dev` → `http://localhost:3000`
 - **API_BASE on contract**: `https://garnish-hardcopy-annotate.ngrok-free.dev/api/agent/leader/`
 - **PRICE_API_BASE on contract**: `https://garnish-hardcopy-annotate.ngrok-free.dev/api/price/`
-- **Frontend (UI)**: `localhost:3000` — runs from `frontend/` directory
-- **Root app (API routes)**: `localhost:3001` — runs from project root `src/`
+- **Root app (API routes)**: `localhost:3000` — runs from project root `src/` (whichever of root/frontend starts FIRST grabs 3000 — check with `lsof -nP -iTCP -sTCP:LISTEN | grep 300`)
+- **Frontend (UI)**: `localhost:3001` — runs from `frontend/` directory
 - **Watcher**: `watcher/src/index.ts`
 
-> **Critical**: Next.js 16 in `frontend/` detects monorepo root at `/somnia/` and reads
+> **Critical #1**: Next.js 16 in `frontend/` detects monorepo root at `/somnia/` and reads
 > env from **root `.env.local`**, NOT `frontend/.env.local`. Always update the root file.
+>
+> **Critical #2**: Port assignment is a RACE — whichever of the root app / frontend starts
+> first grabs `:3000`, the other gets `:3001`. ngrok must point at whichever one is
+> serving `/api/agent/leader/...` (the root app with `src/app/api/`). Verify with:
+> `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/agent/leader/<addr>/latest-swap`
+> (200 = API routes are here) before pointing/repointing ngrok.
 
 ---
 
@@ -81,78 +88,72 @@
 
 ---
 
-## Current Open Issue (tackle in morning)
+## Resolved This Morning (2026-06-07)
 
-### "VM: vault not active" on `checkLeaderActivity`
+### "VM: vault not active" — root cause + permanent fix
 
-**Error:**
-```
-checkLeaderActivity(0xfd3495db0fdb7b60fc7915768488d2bafe5aa383, 0xc3ef32...)
-→ reverted: VM: vault not active
-```
+**The real cause** (not what we guessed last night): the vault for
+`(follower=0xfd3495..., leader=0xc3ef32...)` was not PAUSED — it was **CLOSED**
+(`status = 2`, `ausdLocked = 0`). Someone had called `withdraw()` on it (likely during
+one of the "delete the vault" cleanup attempts), which permanently sets `status = CLOSED`
+and zeroes the balance. The DB's `UserVault` row was never updated to match, so it kept
+showing `status: ACTIVE, ausdcLocked: 200` — a stale record that doesn't reflect chain state.
 
-**What we know:**
-- The DB has a UserVault with `follower=0xfd3495...`, `status=ACTIVE`, `ausdcLocked=200`
-- The watcher reads from DB → fires keeper with `follower=0xfd3495...`
-- The on-chain contract `0x5f0EA2dd5BE70F22375D42034d543C3f91B49667` reverts "vault not active"
-  - This means the vault EXISTS on-chain but has status PAUSED (1) or CLOSED (2)
-  - (If it didn't exist, status would be 0 = ACTIVE → would pass, then fail on `_freeBalance`)
-- The connected browser wallet is `0xDd97...6502` — different from `0xfd3495...`
-- `0xfd3495...` is likely a Privy embedded wallet; `0xDd97...6502` is the external wallet
+**The structural landmine**: `vaultId = keccak256(follower, leader)` has **no nonce**
+(`VaultManager.sol:270-272`), and `createVault` requires `vaults[id].follower == address(0)`
+("VM: vault already exists", line 301). Once a vault for a given (follower, leader) pair is
+closed, **that exact pair can never call `createVault` again on that contract** — permanent
+dead-end. This is what made last night's vault unrecoverable.
 
-**Most likely cause:**
-The user's Privy setup has TWO wallets:
-- `0xfd3495...` — Privy embedded wallet (used for on-chain tx signing for vault creation)
-- `0xDd97...6502` — external/connected wallet (shown in top-right)
+**Fix applied**: added a `reopenVault(leader, amount, riskLevel, maxPerTradePct, allowlist)`
+function + `VaultReopened` event to `VaultManager.sol` (right after `withdraw`). It requires
+`status == CLOSED` and `follower == msg.sender`, takes a fresh deposit, and resets the
+`VaultConfig` in place — giving a path back to ACTIVE without redeploying every time a vault
+is closed. Compiled clean (`npx hardhat compile`).
 
-The vault was created and then paused (user clicked "Pause" or the UI auto-paused it).
-The vault on the new contract has `status = PAUSED`.
+**Redeployed** to `0x3672E7703B6A446d2c38878A227ca2f32Fa5d408` (5th deploy — needed anyway
+since the old contract's dead vault record couldn't be reset without the new function).
+Ran `setApiBase.ts` → same ngrok URL. Updated all 3 env files. Wiped the stale `UserVault`
++ `Position` rows from the DB (`deleteMany({})`).
 
-**To verify in morning:**
-```bash
-# Check vault status on-chain for 0xfd3495...
-node -e "
-const {createPublicClient,http,getAddress}=require('viem');
-const c=createPublicClient({transport:http('https://dream-rpc.somnia.network/')});
-c.readContract({
-  address:'0x5f0EA2dd5BE70F22375D42034d543C3f91B49667',
-  abi:[{name:'getVault',type:'function',stateMutability:'view',inputs:[{name:'follower',type:'address'},{name:'leader',type:'address'}],outputs:[{name:'',type:'tuple',components:[{name:'follower',type:'address'},{name:'ausdLocked',type:'uint256'},{name:'status',type:'uint8'}]}]}],
-  functionName:'getVault',
-  args:['0xFD3495Db4E1cD2E7D06a9AC0Ad5B31c4c4e3eb29','0xc3ef32972c265a82efef46097dff1289cbdee72e']
-}).then(v=>console.log('status:',v.status,'locked:',Number(v.ausdLocked)/1e6));
-"
-```
+**Bonus catch**: this time the root app raced frontend for port 3000 and won — root landed
+on `:3000`, frontend on `:3001` (reversed from before). ngrok was still pointed at `:3001`
+(now frontend, no API routes → would have silently broken the pipeline again). Repointed
+ngrok to `:3000` and verified end-to-end: `curl https://garnish-hardcopy-annotate.ngrok-free.dev/api/agent/leader/.../latest-swap` → `200`.
 
-**Fix options:**
-1. If vault is PAUSED → user calls `resumeVault(leader)` from frontend
-2. If vault was created with wrong token addresses in allowlist → check `getAllowlist`
-3. If vault doesn't actually exist (status=0=ACTIVE but balance=0) → the revert would be "insufficient free balance" not "vault not active" — so this case is ruled out
+**Keeper balance checked**: `0x842056...` now has `2.19 STT` — comfortably above the
+`0.4 STT` needed per `checkLeaderActivity` call (got refunded/topped up since last night's `0.19`).
 
-**Also check tomorrow:**
-- Keeper STT balance: `0x842056...` had only 0.19 STT, needs 0.4 STT per call
-- Keeper must be set on-chain: `keeperOf(0xfd3495...) == 0x842056...`
+### Next action
+Create a fresh vault for `(0xfd3495..., 0xc3ef32...)` through the frontend UI — the new
+contract has no record for this pair (`follower == address(0)` passes), so plain
+`createVault` works normally. `reopenVault` is now there as a safety net if this one ever
+gets closed too. **Remember the frontend UI is now on `:3001`, not `:3000`.**
 
 ---
 
-## How to Resume Tomorrow
+## How to Resume
 
 ```bash
-# 1. Start root API (port 3001 — what ngrok tunnels to)
-cd /Users/manobendramandal/Desktop/code/projects/somnia
-npm run dev   # starts on 3001 (3000 will be taken by frontend)
+# 1. Start root API + frontend (whichever runs first grabs :3000)
+cd /Users/manobendramandal/Desktop/code/projects/somnia && npm run dev &
+cd /Users/manobendramandal/Desktop/code/projects/somnia/frontend && npm run dev &
 
-# 2. Start frontend UI (port 3000)
-cd /Users/manobendramandal/Desktop/code/projects/somnia/frontend
-npm run dev
+# 2. Start watcher
+cd /Users/manobendramandal/Desktop/code/projects/somnia/watcher && npm run dev &
 
-# 3. Start watcher
-cd /Users/manobendramandal/Desktop/code/projects/somnia/watcher
-npm run dev
+# 3. Figure out which port has the API routes (DON'T assume — it flips):
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/api/agent/leader/0xc3ef32972c265a82efef46097dff1289cbdee72e/latest-swap
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3001/api/agent/leader/0xc3ef32972c265a82efef46097dff1289cbdee72e/latest-swap
+# whichever returns 200 is the root app — point ngrok there
 
-# 4. Make sure ngrok is running
-# ngrok http 3001  (or use existing tunnel if still active)
-# Then update API_BASE on contract if ngrok URL changed:
+# 4. Start/repoint ngrok to the root app's port, verify tunnel:
+ngrok http <PORT>
+curl -s -o /dev/null -w "%{http_code}\n" https://garnish-hardcopy-annotate.ngrok-free.dev/api/agent/leader/0xc3ef32972c265a82efef46097dff1289cbdee72e/latest-swap
+# If the ngrok URL changed, re-run:
 # NGROK_URL=https://xxx.ngrok-free.dev npx hardhat run scripts/setApiBase.ts --network somnia
+# (VAULT_MANAGER in setApiBase.ts is currently 0x3672E7703B6A446d2c38878A227ca2f32Fa5d408)
 
-# 5. Check vault status and resume if paused (see "Current Open Issue" above)
+# 5. Open the frontend UI on whichever port did NOT return 200 above,
+#    create a fresh vault for the leader you want to follow, set keeper, fund it, swap.
 ```

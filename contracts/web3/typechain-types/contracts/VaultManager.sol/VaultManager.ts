@@ -91,6 +91,7 @@ export interface VaultManagerInterface extends Interface {
       | "pipelineActiveAt"
       | "positions"
       | "removeFromAllowlist"
+      | "reopenVault"
       | "requestToVault"
       | "resumeVault"
       | "setApiBase"
@@ -120,6 +121,7 @@ export interface VaultManagerInterface extends Interface {
       | "VaultCreated"
       | "VaultDeposited"
       | "VaultPaused"
+      | "VaultReopened"
       | "VaultResumed"
       | "VaultWithdrawn"
       | "WatcherRequested"
@@ -250,6 +252,16 @@ export interface VaultManagerInterface extends Interface {
   encodeFunctionData(
     functionFragment: "removeFromAllowlist",
     values: [AddressLike, AddressLike[]]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "reopenVault",
+    values: [
+      AddressLike,
+      BigNumberish,
+      BigNumberish,
+      BigNumberish,
+      AddressLike[]
+    ]
   ): string;
   encodeFunctionData(
     functionFragment: "requestToVault",
@@ -392,6 +404,10 @@ export interface VaultManagerInterface extends Interface {
   decodeFunctionResult(functionFragment: "positions", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "removeFromAllowlist",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "reopenVault",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -661,6 +677,31 @@ export namespace VaultPausedEvent {
   export type OutputTuple = [vaultId: string];
   export interface OutputObject {
     vaultId: string;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
+export namespace VaultReopenedEvent {
+  export type InputTuple = [
+    follower: AddressLike,
+    leader: AddressLike,
+    vaultId: BytesLike,
+    amount: BigNumberish
+  ];
+  export type OutputTuple = [
+    follower: string,
+    leader: string,
+    vaultId: string,
+    amount: bigint
+  ];
+  export interface OutputObject {
+    follower: string;
+    leader: string;
+    vaultId: string;
+    amount: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -944,6 +985,18 @@ export interface VaultManager extends BaseContract {
     "nonpayable"
   >;
 
+  reopenVault: TypedContractMethod<
+    [
+      leader: AddressLike,
+      amount: BigNumberish,
+      riskLevel: BigNumberish,
+      maxPerTradePct: BigNumberish,
+      allowlist: AddressLike[]
+    ],
+    [void],
+    "nonpayable"
+  >;
+
   requestToVault: TypedContractMethod<[arg0: BigNumberish], [string], "view">;
 
   resumeVault: TypedContractMethod<[leader: AddressLike], [void], "nonpayable">;
@@ -1185,6 +1238,19 @@ export interface VaultManager extends BaseContract {
     "nonpayable"
   >;
   getFunction(
+    nameOrSignature: "reopenVault"
+  ): TypedContractMethod<
+    [
+      leader: AddressLike,
+      amount: BigNumberish,
+      riskLevel: BigNumberish,
+      maxPerTradePct: BigNumberish,
+      allowlist: AddressLike[]
+    ],
+    [void],
+    "nonpayable"
+  >;
+  getFunction(
     nameOrSignature: "requestToVault"
   ): TypedContractMethod<[arg0: BigNumberish], [string], "view">;
   getFunction(
@@ -1337,6 +1403,13 @@ export interface VaultManager extends BaseContract {
     VaultPausedEvent.InputTuple,
     VaultPausedEvent.OutputTuple,
     VaultPausedEvent.OutputObject
+  >;
+  getEvent(
+    key: "VaultReopened"
+  ): TypedContractEvent<
+    VaultReopenedEvent.InputTuple,
+    VaultReopenedEvent.OutputTuple,
+    VaultReopenedEvent.OutputObject
   >;
   getEvent(
     key: "VaultResumed"
@@ -1520,6 +1593,17 @@ export interface VaultManager extends BaseContract {
       VaultPausedEvent.InputTuple,
       VaultPausedEvent.OutputTuple,
       VaultPausedEvent.OutputObject
+    >;
+
+    "VaultReopened(address,address,bytes32,uint256)": TypedContractEvent<
+      VaultReopenedEvent.InputTuple,
+      VaultReopenedEvent.OutputTuple,
+      VaultReopenedEvent.OutputObject
+    >;
+    VaultReopened: TypedContractEvent<
+      VaultReopenedEvent.InputTuple,
+      VaultReopenedEvent.OutputTuple,
+      VaultReopenedEvent.OutputObject
     >;
 
     "VaultResumed(bytes32)": TypedContractEvent<
