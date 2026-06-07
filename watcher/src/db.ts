@@ -64,6 +64,7 @@ export interface Db {
   getOpenPosition(follower: `0x${string}`, leader: `0x${string}`, token: string): Promise<PaperTrade | null>;
   closePosition(id: string, exitPrice: number, pnl: number): Promise<void>;
   getAllOpenPositions(): Promise<PaperTrade[]>;
+  upsertTokenPrice(token: string, price: number): Promise<void>;
 }
 
 // ── Prisma singleton ──────────────────────────────────────────────────────────
@@ -244,6 +245,14 @@ export function createPrismaDb(): Db {
         where: { status: 'OPEN' },
       });
       return rows.map(toTrade);
+    },
+
+    async upsertTokenPrice(token, price) {
+      await prisma.tokenPrice.upsert({
+        where:  { token: token.toUpperCase() },
+        update: { price },
+        create: { token: token.toUpperCase(), price },
+      });
     },
   };
 }

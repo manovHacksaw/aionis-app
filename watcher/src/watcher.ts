@@ -2,7 +2,13 @@ import { createPublicClient, webSocket, http } from 'viem';
 import { ALGEBRA_SWAP_ABI }           from './price.js';
 import { parseSwapLog }               from './parser.js';
 import { processTrade }               from './copy-engine.js';
-import { callCheckLeaderActivity }    from './keeper.js';
+import {
+  callCheckLeaderActivity,
+  getOpenPositionIdsForToken,
+  callClosePosition,
+  callUpdatePrice,
+  waitForPrice,
+} from './keeper.js';
 import { claimSwap }                  from './dedup.js';
 import { somniaMainnet, POOLS, type PoolDef } from './config.js';
 import type { Db }                    from './db.js';
@@ -23,7 +29,8 @@ function makeHttpClient() {
   });
 }
 
-// Refreshed every 5 minutes from DB
+// Refreshed every 15s from DB — cheap queries (DISTINCT leader), and a fresh
+// vault/follow should start being tracked within one human-perceptible beat.
 let trackedLeaders = new Set<string>();
 
 async function refreshLeaders(db: Db) {
@@ -40,7 +47,7 @@ let wsomiPriceCache = 0;
 
 export async function startWatcher(db: Db): Promise<() => void> {
   await refreshLeaders(db);
-  const refreshTimer = setInterval(() => refreshLeaders(db), 5 * 60 * 1000);
+  const refreshTimer = setInterval(() => refreshLeaders(db), 15 * 1000);
 
   const wsClient   = makeWsClient();
   const httpClient = makeHttpClient();
@@ -102,17 +109,51 @@ export async function startWatcher(db: Db): Promise<() => void> {
           console.error('[watcher] processTrade error:', e.message)
         );
 
-        // On-chain copy trading: only trigger for followers whose allowlist includes the traded token
+        // On-chain copy trading:
+        //   BUY  → leader is acquiring tokenOut; open a new position if it's allowlisted
+        //   SELL → leader is exiting tokenIn; only close positions the vault actually holds
+        //          (mirrors the contract's documented intent: closePosition is
+        //          "called by... the keeper wallet when the leader sells")
         db.getOnChainFollowers(recipient).then(async (vaults) => {
           const tokenOut = intent.tokenOut.toLowerCase();
+          const tokenIn  = intent.tokenIn.toLowerCase();
+
           for (const { follower, allowlist } of vaults) {
-            if (!allowlist.includes(tokenOut)) {
-              console.log(`[keeper] skip ${follower.slice(0, 8)}… — ${tokenOut.slice(0, 8)}… not in allowlist`);
-              continue;
+            if (intent.side === 'BUY') {
+              if (!allowlist.includes(tokenOut)) {
+                console.log(`[keeper] skip ${follower.slice(0, 8)}… — ${tokenOut.slice(0, 8)}… not in allowlist`);
+                continue;
+              }
+              callCheckLeaderActivity(follower, recipient).catch((e) =>
+                console.error(`[keeper] ${follower.slice(0, 8)}… → ${e.message}`)
+              );
+            } else {
+              const openIds = await getOpenPositionIdsForToken(follower, recipient, tokenIn).catch((e) => {
+                console.error(`[keeper] ${follower.slice(0, 8)}… getOpenPositions → ${e.message}`);
+                return [] as `0x${string}`[];
+              });
+              if (openIds.length === 0) {
+                console.log(`[keeper] skip ${follower.slice(0, 8)}… — no open ${tokenIn.slice(0, 8)}… position to close`);
+                continue;
+              }
+
+              // closePosition requires a fresh on-chain price — refresh it and
+              // wait for the JSON API agent's callback before closing.
+              (async () => {
+                try {
+                  await callUpdatePrice(tokenIn);
+                  await waitForPrice(tokenIn);
+                } catch (e) {
+                  console.error(`[keeper] ${follower.slice(0, 8)}… price refresh for ${tokenIn.slice(0, 8)}… failed: ${(e as Error).message}`);
+                  return;
+                }
+                for (const positionId of openIds) {
+                  callClosePosition(positionId).catch((e) =>
+                    console.error(`[keeper] ${follower.slice(0, 8)}… closePosition → ${e.message}`)
+                  );
+                }
+              })();
             }
-            callCheckLeaderActivity(follower, recipient).catch((e) =>
-              console.error(`[keeper] ${follower.slice(0, 8)}… → ${e.message}`)
-            );
           }
         }).catch((e) => console.error('[watcher] getOnChainFollowers error:', e.message));
       }

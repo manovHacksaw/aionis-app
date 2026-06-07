@@ -70,6 +70,14 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.IaUSD__factory>;
     getContractFactory(
+      name: "IJsonApiAgent",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.IJsonApiAgent__factory>;
+    getContractFactory(
+      name: "ILLMAgent",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.ILLMAgent__factory>;
+    getContractFactory(
       name: "ISomniaAgentPlatform",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.ISomniaAgentPlatform__factory>;
@@ -149,6 +157,16 @@ declare module "hardhat/types/runtime" {
       signer?: ethers.Signer
     ): Promise<Contracts.IaUSD>;
     getContractAt(
+      name: "IJsonApiAgent",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.IJsonApiAgent>;
+    getContractAt(
+      name: "ILLMAgent",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.ILLMAgent>;
+    getContractAt(
       name: "ISomniaAgentPlatform",
       address: string | ethers.Addressable,
       signer?: ethers.Signer
@@ -216,6 +234,14 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.IaUSD>;
     deployContract(
+      name: "IJsonApiAgent",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.IJsonApiAgent>;
+    deployContract(
+      name: "ILLMAgent",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.ILLMAgent>;
+    deployContract(
       name: "ISomniaAgentPlatform",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.ISomniaAgentPlatform>;
@@ -294,6 +320,16 @@ declare module "hardhat/types/runtime" {
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.IaUSD>;
+    deployContract(
+      name: "IJsonApiAgent",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.IJsonApiAgent>;
+    deployContract(
+      name: "ILLMAgent",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.ILLMAgent>;
     deployContract(
       name: "ISomniaAgentPlatform",
       args: any[],

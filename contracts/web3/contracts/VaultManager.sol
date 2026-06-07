@@ -14,6 +14,54 @@ pragma solidity ^0.8.20;
 
 // ── External interfaces ───────────────────────────────────────────────────────
 
+// Confirmed against a live failed callback trace + the vendored
+// `ISomniaAgents.sol` from github.com/Alike001/auspex (sdk-snippets.md §1,
+// Somnia Agentathon 2026). Two things our original guess got wrong:
+//
+//   1. `createRequest`'s `data` is NOT `abi.encode(url, jsonPath)` — it must be
+//      a real encoded call to one of the agent's typed fetch functions
+//      (`abi.encodeWithSelector(IJsonApiAgent.fetchString.selector, url, path)`).
+//      A plain `abi.encode(string,string)` starts with a zero offset word, whose
+//      first 4 bytes are `0x00000000` — the validators dispatch on that as a
+//      selector and fail with "unknown function selector: no method with id:
+//      0x00000000" (verified twice in the on-chain trace, failureCount=2).
+//
+//   2. The platform's callback ABI is NOT `(uint256, bytes)` — it is always
+//      `(uint256 requestId, AgentValidatorResponse[] responses,
+//        AgentResponseStatus status, AgentRequestInfo request)`. Decoding the
+//      live failed-callback calldata against this shape produced clean,
+//      sensible values (requestId, validator addresses, executionCost, etc.);
+//      our `(uint256, bytes)` assumption decoded garbage and reverted.
+
+enum AgentResponseStatus { None, Pending, Success, Failed, TimedOut }
+enum AgentConsensusType  { Majority, Threshold }
+
+struct AgentValidatorResponse {
+    address              validator;
+    bytes                result;
+    AgentResponseStatus  status;
+    uint256              receipt;
+    uint256              timestamp;
+    uint256              executionCost;
+}
+
+struct AgentRequestInfo {
+    uint256                   id;
+    address                   requester;
+    address                   callbackAddress;
+    bytes4                    callbackSelector;
+    address[]                 subcommittee;
+    AgentValidatorResponse[]  responses;
+    uint256                   responseCount;
+    uint256                   failureCount;
+    uint256                   threshold;
+    uint256                   createdAt;
+    uint256                   deadline;
+    AgentResponseStatus       status;
+    AgentConsensusType        consensusType;
+    uint256                   remainingBudget;
+}
+
 /**
  * @notice Somnia Agent Platform — dispatches work to the off-chain agent fleet.
  * @dev Deployed at 0x037Bb9C718F3f7fe5eCBDB0b600D607b52706776 on Somnia testnet.
@@ -27,6 +75,24 @@ interface ISomniaAgentPlatform {
     ) external payable returns (uint256 requestId);
 
     function getRequestDeposit() external view returns (uint256);
+}
+
+/// @dev The JSON API agent dispatches on the 4-byte selector of `data` — it
+///      must be encoded as a genuine call to one of these typed fetchers, and
+///      its `selector` argument is a plain dot-notation field path (no `$.`).
+interface IJsonApiAgent {
+    function fetchString(string calldata url, string calldata selector) external returns (string memory);
+    function fetchUint(string calldata url, string calldata selector, uint8 decimals) external returns (uint256);
+}
+
+interface ILLMAgent {
+    function inferNumber(
+        string calldata prompt,
+        string calldata system,
+        int256 minValue,
+        int256 maxValue,
+        bool   chainOfThought
+    ) external returns (int256);
 }
 
 /**
@@ -122,6 +188,12 @@ contract VaultManager {
         uint256         closedAt;
     }
 
+    /// @dev Minimal trade context carried from the watcher callback to the executor.
+    struct PendingTrade {
+        address tokenOut;
+        uint256 tradePrice;
+    }
+
     // ── State ─────────────────────────────────────────────────────────────────
 
     /// @notice vaultId(follower, leader) → vault config
@@ -144,8 +216,8 @@ contract VaultManager {
     /// @dev requestId → vaultId  (watcher and strategist callbacks share this)
     mapping(uint256  => bytes32)      public requestToVault;
 
-    /// @dev vaultId → raw trade bytes carried from watcher → strategist callback
-    mapping(bytes32  => bytes)        private pendingTradeData;
+    /// @dev vaultId → traded token + trade-time price, carried from watcher → executor
+    mapping(bytes32  => PendingTrade) private pendingTrade;
 
     /// @dev Timestamp when pipeline started; 0 = idle. Auto-expires after PIPELINE_TIMEOUT.
     mapping(bytes32  => uint256)      public pipelineActiveAt;
@@ -189,7 +261,6 @@ contract VaultManager {
     event WatcherResponse(
         uint256 indexed requestId,
         bytes32 indexed vaultId,
-        address tokenIn,
         address tokenOut,
         uint256 usdValue,
         uint256 tradeTimestamp
@@ -514,13 +585,22 @@ contract VaultManager {
         require(msg.value >= jsonFee + llmFee, "VM: insufficient deposit (need >= jsonFee+llmFee)");
 
         string memory url = string.concat(API_BASE, _toHexString(leader), "/latest-swap");
-        bytes memory requestData = abi.encode(url, "$.swap");
+
+        // The API exposes the trade pre-packed as a single ABI-encoded hex blob
+        // at `swap.encoded` (see route comment) — one `fetchString` round-trip
+        // gets us the whole `(tokenIn, tokenOut, usdValue, tradePrice, timestamp)`
+        // tuple instead of chaining five single-field fetches.
+        bytes memory payload = abi.encodeWithSelector(
+            IJsonApiAgent.fetchString.selector,
+            url,
+            "swap.encoded"
+        );
 
         uint256 requestId = ISomniaAgentPlatform(AGENT_PLATFORM).createRequest{value: jsonFee}(
             JSON_API_AGENT_ID,
             address(this),
             this.onWatcherResponse.selector,
-            requestData
+            payload
         );
 
         requestToVault[requestId] = id;
@@ -536,13 +616,18 @@ contract VaultManager {
      * @notice Called by the Somnia Agent Platform after the JSON API Agent
      *         fetches the leader's latest swap from the Aionis API.
      *
-     * @dev    Response ABI-encoded as:
-     *           (address tokenIn, address tokenOut, uint256 usdValue,
-     *            uint256 tradePrice, uint256 tradeTimestamp)
+     * @dev    The platform's real callback ABI is always
+     *         `(uint256 requestId, AgentValidatorResponse[] responses,
+     *           AgentResponseStatus status, AgentRequestInfo request)` —
+     *         NOT `(uint256, bytes)`. `responses[0].result` holds the return
+     *         value of the `fetchString` call we dispatched: a hex string
+     *         of `abi.encode(tokenIn, tokenOut, usdValue, tradePrice, timestamp)`.
      */
     function onWatcherResponse(
-        uint256        requestId,
-        bytes calldata response
+        uint256                          requestId,
+        AgentValidatorResponse[] memory  responses,
+        AgentResponseStatus              status,
+        AgentRequestInfo memory          /* request */
     ) external onlyAgentPlatform {
         bytes32 id = requestToVault[requestId];
         require(id != bytes32(0), "VM: unknown watcher request");
@@ -550,15 +635,25 @@ contract VaultManager {
 
         VaultConfig storage v = vaults[id];
 
+        if (status != AgentResponseStatus.Success || responses.length == 0) {
+            emit TradeSkipped(id, "watcher request failed");
+            pipelineActiveAt[id] = 0;
+            return;
+        }
+
+        string memory encodedHex = abi.decode(responses[0].result, (string));
         (
-            address tokenIn,
+            ,
             address tokenOut,
             uint256 usdValue,
-            ,
+            uint256 tradePrice,
             uint256 tradeTimestamp
-        ) = abi.decode(response, (address, address, uint256, uint256, uint256));
+        ) = abi.decode(
+            _hexStringToBytes(encodedHex),
+            (address, address, uint256, uint256, uint256)
+        );
 
-        emit WatcherResponse(requestId, id, tokenIn, tokenOut, usdValue, tradeTimestamp);
+        emit WatcherResponse(requestId, id, tokenOut, usdValue, tradeTimestamp);
 
         // ── Stale trade guard ─────────────────────────────────────────────────
         if (block.timestamp - tradeTimestamp > MAX_TRADE_AGE) {
@@ -568,9 +663,6 @@ contract VaultManager {
         }
 
         // ── Only copy BUY trades (tokenOut = asset being acquired) ────────────
-        // Determine the asset being traded into
-        // BUY:  tokenIn = stablecoin, tokenOut = asset (e.g. WSOMI)
-        // SELL: tokenIn = asset, tokenOut = stablecoin — we skip SELLs at watcher stage
         address tradedToken = tokenOut;
 
         // ── Allowlist check ───────────────────────────────────────────────────
@@ -588,8 +680,8 @@ contract VaultManager {
             return;
         }
 
-        // ── Store trade data for strategist ──────────────────────────────────
-        pendingTradeData[id] = response;
+        // ── Store trade context for the executor ─────────────────────────────
+        pendingTrade[id] = PendingTrade({ tokenOut: tradedToken, tradePrice: tradePrice });
 
         // ── Build LLM prompt and dispatch ────────────────────────────────────
         uint256 maxTrade = (v.ausdLocked * v.maxPerTradePct) / 100;
@@ -605,11 +697,20 @@ contract VaultManager {
         uint256 llmOpDeposit = ISomniaAgentPlatform(AGENT_PLATFORM).getRequestDeposit();
         uint256 llmFee       = llmOpDeposit + 0.21 ether;
 
+        bytes memory llmPayload = abi.encodeWithSelector(
+            ILLMAgent.inferNumber.selector,
+            prompt,
+            "You are a precise risk-scoring engine for a copy-trading vault. Respond with only an integer copy-score from 0 to 100.",
+            int256(0),
+            int256(100),
+            false
+        );
+
         uint256 llmRequestId = ISomniaAgentPlatform(AGENT_PLATFORM).createRequest{value: llmFee}(
             LLM_AGENT_ID,
             address(this),
             this.onStrategistResponse.selector,
-            abi.encode(prompt)
+            llmPayload
         );
 
         requestToVault[llmRequestId] = id;
@@ -625,32 +726,47 @@ contract VaultManager {
      * @notice Called by the Somnia Agent Platform after the LLM Strategist
      *         evaluates the trade.
      *
-     * @dev    Response ABI-encoded as uint8 (0-100 copy score).
+     * @dev    Real callback ABI: `(uint256, AgentValidatorResponse[],
+     *         AgentResponseStatus, AgentRequestInfo)`. We dispatched via
+     *         `ILLMAgent.inferNumber`, so `responses[0].result` decodes to
+     *         an `int256` copy-score (clamped to 0-100 below).
      */
     function onStrategistResponse(
-        uint256        requestId,
-        bytes calldata response
+        uint256                          requestId,
+        AgentValidatorResponse[] memory  responses,
+        AgentResponseStatus              status,
+        AgentRequestInfo memory          /* request */
     ) external onlyAgentPlatform {
         bytes32 id = requestToVault[requestId];
         require(id != bytes32(0), "VM: unknown strategist request");
         delete requestToVault[requestId];
 
-        uint256 rawScore = abi.decode(response, (uint256));
-        uint8 score = rawScore > 100 ? 100 : uint8(rawScore);
+        if (status != AgentResponseStatus.Success || responses.length == 0) {
+            emit TradeSkipped(id, "strategist request failed");
+            delete pendingTrade[id];
+            pipelineActiveAt[id] = 0;
+            return;
+        }
+
+        int256 rawScore = abi.decode(responses[0].result, (int256));
+        uint8  score;
+        if (rawScore <= 0)        score = 0;
+        else if (rawScore >= 100) score = 100;
+        else                      score = uint8(uint256(rawScore));
 
         bool willExecute = score >= MIN_COPY_SCORE;
         emit StrategistResponse(requestId, id, score, willExecute);
 
         if (!willExecute) {
             emit TradeSkipped(id, "score below threshold");
-            delete pendingTradeData[id];
+            delete pendingTrade[id];
             pipelineActiveAt[id] = 0;
             return;
         }
 
         _openPosition(id, score);
 
-        delete pendingTradeData[id];
+        delete pendingTrade[id];
         pipelineActiveAt[id] = 0;
     }
 
@@ -661,10 +777,9 @@ contract VaultManager {
     function _openPosition(bytes32 id, uint8 score) internal {
         VaultConfig storage v = vaults[id];
 
-        (, address tokenOut, , uint256 tradePrice,) = abi.decode(
-            pendingTradeData[id],
-            (address, address, uint256, uint256, uint256)
-        );
+        PendingTrade memory pt = pendingTrade[id];
+        address tokenOut   = pt.tokenOut;
+        uint256 tradePrice = pt.tradePrice;
 
         uint256 freeBalance = _freeBalance(v);
         uint256 maxTrade    = (v.ausdLocked * v.maxPerTradePct) / 100;
@@ -783,13 +898,18 @@ contract VaultManager {
         require(msg.value >= opDeposit + 0.09 ether, "VM: insufficient deposit for price update");
 
         string memory url = string.concat(PRICE_API_BASE, _toHexString(token));
-        bytes memory requestData = abi.encode(url, "$.price");
+        bytes memory payload = abi.encodeWithSelector(
+            IJsonApiAgent.fetchUint.selector,
+            url,
+            "price",
+            uint8(10)
+        );
 
         uint256 requestId = ISomniaAgentPlatform(AGENT_PLATFORM).createRequest{value: msg.value}(
             JSON_API_AGENT_ID,
             address(this),
             this.onPriceUpdate.selector,
-            requestData
+            payload
         );
 
         priceRequestToToken[requestId] = token;
@@ -797,17 +917,26 @@ contract VaultManager {
 
     /**
      * @notice Called by the Somnia Agent Platform with the latest price.
-     * @dev    Response ABI-encoded as uint256 (price × 1e10).
+     * @dev    Real callback ABI: `(uint256, AgentValidatorResponse[],
+     *         AgentResponseStatus, AgentRequestInfo)`. We dispatched via
+     *         `IJsonApiAgent.fetchUint(..., decimals=10)`, so
+     *         `responses[0].result` decodes to a `uint256` price × 1e10.
      */
     function onPriceUpdate(
-        uint256        requestId,
-        bytes calldata response
+        uint256                          requestId,
+        AgentValidatorResponse[] memory  responses,
+        AgentResponseStatus              status,
+        AgentRequestInfo memory          /* request */
     ) external onlyAgentPlatform {
         address token = priceRequestToToken[requestId];
         require(token != address(0), "VM: unknown price request");
         delete priceRequestToToken[requestId];
 
-        uint256 price = abi.decode(response, (uint256));
+        if (status != AgentResponseStatus.Success || responses.length == 0) {
+            return;
+        }
+
+        uint256 price = abi.decode(responses[0].result, (uint256));
         require(price > 0, "VM: invalid price");
 
         latestPrice[token] = price;
@@ -1037,6 +1166,31 @@ contract VaultManager {
         uint256 k = len;
         while (v != 0) { k--; bstr[k] = bytes1(uint8(48 + v % 10)); v /= 10; }
         return string(bstr);
+    }
+
+    /// @dev Decodes a `0x`-prefixed hex string (as returned by `fetchString`)
+    ///      into raw bytes, e.g. for re-decoding an ABI-encoded payload that
+    ///      the API exposed as a JSON string field.
+    function _hexStringToBytes(string memory s) internal pure returns (bytes memory r) {
+        bytes memory b = bytes(s);
+        uint256 start = (b.length >= 2 && b[0] == "0" && (b[1] == "x" || b[1] == "X")) ? 2 : 0;
+        require((b.length - start) % 2 == 0, "VM: bad hex length");
+
+        uint256 n = (b.length - start) / 2;
+        r = new bytes(n);
+        for (uint256 i = 0; i < n; i++) {
+            r[i] = bytes1(
+                _hexNibble(b[start + 2 * i]) * 16 + _hexNibble(b[start + 2 * i + 1])
+            );
+        }
+    }
+
+    function _hexNibble(bytes1 c) internal pure returns (uint8) {
+        uint8 ch = uint8(c);
+        if (ch >= 48 && ch <= 57)  return ch - 48;        // '0'-'9'
+        if (ch >= 97 && ch <= 102) return ch - 87;        // 'a'-'f'
+        if (ch >= 65 && ch <= 70)  return ch - 55;        // 'A'-'F'
+        revert("VM: bad hex char");
     }
 
     receive() external payable {}

@@ -173,3 +173,117 @@ curl -s -o /dev/null -w "%{http_code}\n" https://garnish-hardcopy-annotate.ngrok
 # 6. Open http://localhost:3000 — create a fresh vault for the leader you want to
 #    follow, set keeper, fund it, swap.
 ```
+
+---
+
+## Next Phase — Planned Enhancements (12-point spec, pasted by user 2026-06-07)
+
+Implementation plan for the next round of Aionis work. Not yet started — saved here
+verbatim so it survives a context reset.
+
+### 1. Partial aUSD Withdrawals
+Currently withdrawing is all-or-nothing and closes the vault.
+- Users can withdraw any partial amount of free (unallocated) aUSD at any time.
+- Capital protection: cannot withdraw funds active in open virtual positions
+  (e.g. $100 locked, $30 in a trade → max withdrawal is $70).
+- If the entire free balance is withdrawn and there are no active trades, the vault
+  auto-closes; otherwise it stays active with the remaining capital.
+
+### 2. Rebranding: "Vaults" → "Agents"
+- Replace "Vault" with "Agent" everywhere in the UI: menus, buttons, notifications.
+- Users "deploy an Agent" to follow a leader and configure "Agent settings".
+
+### 3. Dynamic Visual Avatars for Leaders & Followers
+- Every wallet address (leader or follower) maps to a unique generated gradient +
+  geometric symbol (deterministic from the address).
+- Premium look: glassmorphism, electric blues/neon purples/sunset-orange gradients —
+  so top leaders are instantly recognizable by their icon.
+
+### 4. Portfolio: Live Token Holdings
+- Replace the vault-list Portfolio view with a consolidated **Token Holdings** dashboard
+  showing what tokens the user's agents virtually hold (WSOMI, NIA, USDC, ...).
+- When multiple agents hold the same token, aggregate: total capital value, weighted
+  average entry price, current market price, combined unrealized P&L ($ and %), and a
+  breakdown of which agents hold it.
+
+### 5. Dedicated "Agents" Dashboard
+- New page `/agents` — the control room for copy-trading containers (now that Portfolio
+  focuses on token holdings).
+- Shows: total locked capital across all agents, count of active agents, a card list of
+  deployed agents, and quick Pause/Resume/Manage controls per card.
+
+### 6. Rebranding: Traders directory → "Discover"
+- Rename "Traders" to "Discover" in nav header and page headings — the portal for
+  browsing/discovering leader wallets to follow.
+
+### 7. Privy Wallet Integration & Local Transaction Execution
+- Clarify Privy's two wallet types: External (MetaMask/Rabby/Coinbase — Privy is just a
+  connector, signing happens in the extension) vs. Embedded (Google/Email login — MPC
+  wallet, signing happens in a Privy-controlled iframe popup).
+- Add this explanation to onboarding so users understand why MetaMask still pops up
+  when they "logged in via Privy".
+
+### 8. First-Time User Onboarding Flow
+Step-by-step wizard on first login:
+1. Welcome & Privy wallet info (address + copy button, "this is where your testnet funds live")
+2. aUSD & Testnet vs. Mainnet — Somnia Shannon Testnet, aUSD = simulated stablecoin,
+   STT = gas token; trades are virtual/on-chain, capital locked as aUSD, nothing real
+   bought/sold (no slippage risk to the user)
+3. Setup Notifications — collect email, opt in to real-time trade-copy/close alerts via Resend
+4. Funding & Getting Started — claim 10,000 aUSD from the faucet, deploy first agent
+
+### 9. Advanced Agent Configuration
+Replace the simple risk slider with granular controls:
+- **Risk levels**:
+  - L1 Very Conservative — copy score 80+, max 5% size, 0.5% slippage tolerance
+  - L2 Conservative — copy score 60+, max 10% size, 1.0% slippage tolerance
+  - L3 Moderate — copy score 40+, max 20% size, 2.0% slippage tolerance
+  - L4 Aggressive — copy score 20+, max 35% size, 3.0% slippage tolerance
+  - L5 Hyper-Aggressive — copy score 10+, max 50% size, 5.0% slippage tolerance
+- **Slippage tolerance** — max allowed price move between leader execution and agent entry
+- **Trade size limits**:
+  1. Min leader trade size (USD) — ignore leader trades smaller than this (filters dust)
+  2. Max leader trade size (USD) — ignore leader trades larger than this (filters outliers)
+  3. Min allocation from vault (aUSD) — skip if computed copy size is below this
+  4. Max allocation from vault (aUSD) — hard cap on copy capital per trade regardless of score
+
+### 10. Natural Language AI Trade Reasoning
+Replace the raw numeric score (e.g. "78/100") in trade history with a natural-language
+explanation of why a trade was copied or skipped, e.g.:
+- Copied: *"The agent copy-traded $45.00 aUSD of WSOMI (score 85/100). The trade was
+  strongly approved because the leader committed a substantial portion (25%) of their
+  portfolio to this entry, aligning with your moderate risk settings."*
+- Copied (smaller): *"Copied with a conservative allocation of $10.00 aUSD (score 35/100).
+  The signal was weaker due to low leader trade volume, and your Low Risk profile
+  prioritized capital preservation."*
+- Skipped (slippage): *"Trade skipped: Slippage limit exceeded. The token price rose 2.4%
+  above the leader's entry, which is beyond your 1% slippage threshold."*
+- Skipped (allowlist): *"Trade skipped: Token not in allowlist. The leader bought NIA,
+  which is currently deselected in your agent's settings."*
+- Skipped (balance): *"Trade skipped: Insufficient balance. The calculated minimum
+  allocation was $15.00, but your agent only has $4.20 in free capital."*
+
+### 11. Manual "Stop" for Ongoing Trades
+- Let users manually close ("Stop") an active virtual position at any time, instead of
+  waiting for the leader to sell.
+- Instant settle: closing immediately exits the position on-chain, fetches the current
+  token price, computes P&L, updates the agent's aUSD balance, and unlocks the capital.
+
+### 12. Workspace Cleanup
+- Delete legacy folders: `prisma_old`, `src_old`.
+- Delete obsolete root configs left over from when the frontend lived at the repo root:
+  `next.config.ts`, `postcss.config.mjs`, `eslint.config.mjs`, `next-env.d.ts`,
+  `tsconfig.tsbuildinfo`.
+
+### Verification & Deployment Plan
+1. Compile the contract to verify code changes are valid.
+2. Deploy the updated `VaultManager` to Somnia Shannon Testnet.
+3. Generate and run Prisma migrations for new tables/config columns.
+4. Local smoke tests:
+   - Complete the onboarding wizard as a fresh user
+   - Customize and save advanced agent configuration settings
+   - Verify partial withdrawals update free balance and over-withdraw attempts are blocked
+   - Trigger mock trades and verify the portfolio token-holdings table aggregates correctly
+   - Manually stop an ongoing trade and verify instant on-chain settlement
+   - Check that trade history shows natural-language reason logs
+

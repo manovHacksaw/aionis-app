@@ -23,6 +23,80 @@ import type {
   TypedContractMethod,
 } from "../../common";
 
+export type AgentValidatorResponseStruct = {
+  validator: AddressLike;
+  result: BytesLike;
+  status: BigNumberish;
+  receipt: BigNumberish;
+  timestamp: BigNumberish;
+  executionCost: BigNumberish;
+};
+
+export type AgentValidatorResponseStructOutput = [
+  validator: string,
+  result: string,
+  status: bigint,
+  receipt: bigint,
+  timestamp: bigint,
+  executionCost: bigint
+] & {
+  validator: string;
+  result: string;
+  status: bigint;
+  receipt: bigint;
+  timestamp: bigint;
+  executionCost: bigint;
+};
+
+export type AgentRequestInfoStruct = {
+  id: BigNumberish;
+  requester: AddressLike;
+  callbackAddress: AddressLike;
+  callbackSelector: BytesLike;
+  subcommittee: AddressLike[];
+  responses: AgentValidatorResponseStruct[];
+  responseCount: BigNumberish;
+  failureCount: BigNumberish;
+  threshold: BigNumberish;
+  createdAt: BigNumberish;
+  deadline: BigNumberish;
+  status: BigNumberish;
+  consensusType: BigNumberish;
+  remainingBudget: BigNumberish;
+};
+
+export type AgentRequestInfoStructOutput = [
+  id: bigint,
+  requester: string,
+  callbackAddress: string,
+  callbackSelector: string,
+  subcommittee: string[],
+  responses: AgentValidatorResponseStructOutput[],
+  responseCount: bigint,
+  failureCount: bigint,
+  threshold: bigint,
+  createdAt: bigint,
+  deadline: bigint,
+  status: bigint,
+  consensusType: bigint,
+  remainingBudget: bigint
+] & {
+  id: bigint;
+  requester: string;
+  callbackAddress: string;
+  callbackSelector: string;
+  subcommittee: string[];
+  responses: AgentValidatorResponseStructOutput[];
+  responseCount: bigint;
+  failureCount: bigint;
+  threshold: bigint;
+  createdAt: bigint;
+  deadline: bigint;
+  status: bigint;
+  consensusType: bigint;
+  remainingBudget: bigint;
+};
+
 export declare namespace VaultManager {
   export type VaultConfigStruct = {
     follower: AddressLike;
@@ -226,15 +300,30 @@ export interface VaultManagerInterface extends Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "onPriceUpdate",
-    values: [BigNumberish, BytesLike]
+    values: [
+      BigNumberish,
+      AgentValidatorResponseStruct[],
+      BigNumberish,
+      AgentRequestInfoStruct
+    ]
   ): string;
   encodeFunctionData(
     functionFragment: "onStrategistResponse",
-    values: [BigNumberish, BytesLike]
+    values: [
+      BigNumberish,
+      AgentValidatorResponseStruct[],
+      BigNumberish,
+      AgentRequestInfoStruct
+    ]
   ): string;
   encodeFunctionData(
     functionFragment: "onWatcherResponse",
-    values: [BigNumberish, BytesLike]
+    values: [
+      BigNumberish,
+      AgentValidatorResponseStruct[],
+      BigNumberish,
+      AgentRequestInfoStruct
+    ]
   ): string;
   encodeFunctionData(functionFragment: "owner", values?: undefined): string;
   encodeFunctionData(
@@ -751,7 +840,6 @@ export namespace WatcherResponseEvent {
   export type InputTuple = [
     requestId: BigNumberish,
     vaultId: BytesLike,
-    tokenIn: AddressLike,
     tokenOut: AddressLike,
     usdValue: BigNumberish,
     tradeTimestamp: BigNumberish
@@ -759,7 +847,6 @@ export namespace WatcherResponseEvent {
   export type OutputTuple = [
     requestId: bigint,
     vaultId: string,
-    tokenIn: string,
     tokenOut: string,
     usdValue: bigint,
     tradeTimestamp: bigint
@@ -767,7 +854,6 @@ export namespace WatcherResponseEvent {
   export interface OutputObject {
     requestId: bigint;
     vaultId: string;
-    tokenIn: string;
     tokenOut: string;
     usdValue: bigint;
     tradeTimestamp: bigint;
@@ -924,19 +1010,34 @@ export interface VaultManager extends BaseContract {
   latestPrice: TypedContractMethod<[arg0: AddressLike], [bigint], "view">;
 
   onPriceUpdate: TypedContractMethod<
-    [requestId: BigNumberish, response: BytesLike],
+    [
+      requestId: BigNumberish,
+      responses: AgentValidatorResponseStruct[],
+      status: BigNumberish,
+      arg3: AgentRequestInfoStruct
+    ],
     [void],
     "nonpayable"
   >;
 
   onStrategistResponse: TypedContractMethod<
-    [requestId: BigNumberish, response: BytesLike],
+    [
+      requestId: BigNumberish,
+      responses: AgentValidatorResponseStruct[],
+      status: BigNumberish,
+      arg3: AgentRequestInfoStruct
+    ],
     [void],
     "nonpayable"
   >;
 
   onWatcherResponse: TypedContractMethod<
-    [requestId: BigNumberish, response: BytesLike],
+    [
+      requestId: BigNumberish,
+      responses: AgentValidatorResponseStruct[],
+      status: BigNumberish,
+      arg3: AgentRequestInfoStruct
+    ],
     [void],
     "nonpayable"
   >;
@@ -1170,21 +1271,36 @@ export interface VaultManager extends BaseContract {
   getFunction(
     nameOrSignature: "onPriceUpdate"
   ): TypedContractMethod<
-    [requestId: BigNumberish, response: BytesLike],
+    [
+      requestId: BigNumberish,
+      responses: AgentValidatorResponseStruct[],
+      status: BigNumberish,
+      arg3: AgentRequestInfoStruct
+    ],
     [void],
     "nonpayable"
   >;
   getFunction(
     nameOrSignature: "onStrategistResponse"
   ): TypedContractMethod<
-    [requestId: BigNumberish, response: BytesLike],
+    [
+      requestId: BigNumberish,
+      responses: AgentValidatorResponseStruct[],
+      status: BigNumberish,
+      arg3: AgentRequestInfoStruct
+    ],
     [void],
     "nonpayable"
   >;
   getFunction(
     nameOrSignature: "onWatcherResponse"
   ): TypedContractMethod<
-    [requestId: BigNumberish, response: BytesLike],
+    [
+      requestId: BigNumberish,
+      responses: AgentValidatorResponseStruct[],
+      status: BigNumberish,
+      arg3: AgentRequestInfoStruct
+    ],
     [void],
     "nonpayable"
   >;
@@ -1639,7 +1755,7 @@ export interface VaultManager extends BaseContract {
       WatcherRequestedEvent.OutputObject
     >;
 
-    "WatcherResponse(uint256,bytes32,address,address,uint256,uint256)": TypedContractEvent<
+    "WatcherResponse(uint256,bytes32,address,uint256,uint256)": TypedContractEvent<
       WatcherResponseEvent.InputTuple,
       WatcherResponseEvent.OutputTuple,
       WatcherResponseEvent.OutputObject

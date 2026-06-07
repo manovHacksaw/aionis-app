@@ -1,0 +1,299 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAccount } from 'wagmi';
+import ConnectButton from '@/components/ConnectButton';
+
+type Trade = {
+  id: string;
+  leader: string;
+  token: string;
+  ausdcAllocated: number;
+  entryPrice: number;
+  exitPrice: number | null;
+  pnl: number;
+  pnlPct: number;
+  status: 'OPEN' | 'CLOSED' | 'SKIPPED';
+  reason: string | null;
+  openedAt: string;
+  closedAt: string | null;
+  txHashOpen: string | null;
+  txHashClose: string | null;
+};
+
+const fmt = (addr: string) => `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+
+const TokenLogo = ({ symbol }: { symbol: string }) => {
+  const sym = symbol.toUpperCase();
+  let src = '';
+  if (sym === 'WSOMI' || sym === 'SOMI') src = '/token-logos/WSOMI.png';
+  else if (sym === 'USDC' || sym === 'USDC.E') src = '/token-logos/USDC.png';
+
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={symbol}
+        className="w-6 h-6 rounded-full object-cover border border-border bg-surface flex-shrink-0"
+        onError={(e) => {
+          (e.target as HTMLElement).style.display = 'none';
+        }}
+      />
+    );
+  }
+
+  return (
+    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-surface to-border border border-border/60 flex items-center justify-center text-[10px] text-muted font-bold uppercase flex-shrink-0 select-none">
+      {symbol.slice(0, 2)}
+    </div>
+  );
+};
+
+export default function TradesPage() {
+  const router = useRouter();
+  const { address, isConnected } = useAccount();
+  const [trades, setTrades] = useState<Trade[]>([]);
+  const [filter, setFilter] = useState<'ALL' | 'OPEN' | 'CLOSED' | 'SKIPPED'>('ALL');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!address) return;
+    setLoading(true);
+    setError(null);
+    fetch(`/api/trades?address=${address}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.error) {
+          setError(data.error);
+        } else {
+          setTrades(data.trades ?? []);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load trades:', err);
+        setError('Failed to load trades history.');
+      })
+      .finally(() => setLoading(false));
+  }, [address]);
+
+  const filteredTrades = trades.filter((t) => {
+    if (filter === 'ALL') return true;
+    return t.status === filter;
+  });
+
+  return (
+    <div className="text-foreground px-[7.5%] py-8 w-full select-none">
+      {/* Header */}
+      <div className="mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <h1 className="text-[28px] font-light tracking-[-0.04em] text-foreground mb-1">Trades</h1>
+          <p className="text-[14px] text-muted font-normal">Real-time copy-trading history and performance.</p>
+        </div>
+
+        {/* Filters Switcher */}
+        <div className="flex bg-surface/80 border border-border/60 p-1 rounded-full w-fit">
+        {(['ALL', 'OPEN', 'CLOSED', 'SKIPPED'] as const).map((opt) => (
+            <button
+              key={opt}
+              onClick={() => setFilter(opt)}
+              className={`px-4 py-1.5 rounded-full text-[13px] font-medium transition-spring hover:scale-105 active:scale-95 cursor-pointer capitalize ${
+                filter === opt
+                  ? opt === 'OPEN'
+                    ? 'bg-emerald-500/20 text-emerald-300 shadow-md shadow-emerald-500/10'
+                    : opt === 'SKIPPED'
+                    ? 'bg-amber-500/20 text-amber-300 shadow-md shadow-amber-500/10'
+                    : 'bg-accent text-accent-foreground shadow-md shadow-accent/10'
+                  : 'text-muted hover:text-foreground'
+              }`}
+            >
+              {opt === 'ALL' ? 'All' : opt.charAt(0) + opt.slice(1).toLowerCase()}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {!isConnected && (
+        <div className="py-24 text-center border border-border/50 rounded-2xl flex flex-col items-center gap-4 bg-card/50 backdrop-blur-sm">
+          <p className="text-subtle text-[14px]">Connect your wallet to view your copy trades history.</p>
+          <ConnectButton />
+        </div>
+      )}
+
+      {isConnected && loading && (
+        <div className="space-y-4 animate-fade-in">
+          <div className="h-[40px] rounded-xl border border-border animate-shimmer" />
+          <div className="space-y-2">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="h-[70px] border border-border/60 rounded-2xl animate-shimmer" style={{ animationDelay: `${i * 45}ms` }} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {isConnected && error && (
+        <div className="py-24 text-center text-red-500/60 text-[14px] bg-card/50 backdrop-blur-sm border border-border/50 rounded-2xl">
+          {error}
+        </div>
+      )}
+
+      {isConnected && !loading && !error && (
+        <div className="overflow-hidden">
+          {filteredTrades.length === 0 ? (
+            <div className="py-24 text-center border border-border/50 rounded-2xl bg-card/50">
+              <p className="text-subtle text-[14px] mb-1">No trades found matching this filter.</p>
+              <p className="text-subtle text-[13px] mb-8">Follow a leader to execute trades on-chain.</p>
+              <button
+                onClick={() => router.push('/traders')}
+                className="rounded-full border border-foreground/[0.18] bg-foreground/[0.03] text-foreground/90 text-[13px] px-5 py-2 hover:bg-foreground/[0.08] hover:border-foreground/40 transition-spring hover:scale-105 active:scale-95 cursor-pointer"
+              >
+                Discover Leaders
+              </button>
+            </div>
+          ) : (
+            <div className="bg-surface border border-border shadow-xl rounded-2xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-border text-subtle text-[11px] uppercase tracking-wider bg-background/40">
+                      <th className="py-4 px-6 font-medium">Asset</th>
+                      <th className="py-4 px-6 font-medium">Leader</th>
+                      <th className="py-4 px-6 font-medium text-right">Size</th>
+                      <th className="py-4 px-6 font-medium text-right">Entry Price</th>
+                      <th className="py-4 px-6 font-medium text-right">Exit Price</th>
+                      <th className="py-4 px-6 font-medium text-right">P&L</th>
+                      <th className="py-4 px-6 font-medium text-center">Status</th>
+                      <th className="py-4 px-6 font-medium text-right">Date</th>
+                      <th className="py-4 px-6 font-medium text-center">Links</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60 text-[13px]">
+                    {filteredTrades.map((trade, idx) => {
+                      const isProfit = trade.pnl >= 0;
+                      return (
+                        <tr key={trade.id} className="hover:bg-surface/30 hover:text-foreground transition-spring hover:translate-x-0.5 animate-fade-in-up" style={{ animationDelay: `${(idx % 15) * 35}ms` }}>
+                          {/* Asset */}
+                          <td className="py-4 px-6 font-medium flex items-center gap-2.5">
+                            <TokenLogo symbol={trade.token} />
+                            <span className="text-foreground font-medium">{trade.token}</span>
+                          </td>
+                          {/* Leader */}
+                          <td className="py-4 px-6 font-mono text-muted">
+                            <a
+                              href={`https://testnet.somnia.exploreme.pro/address/${trade.leader}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="hover:text-accent-hover transition-colors"
+                            >
+                              {fmt(trade.leader)}
+                            </a>
+                          </td>
+                          {/* Allocated / Size */}
+                          <td className="py-4 px-6 text-right font-medium text-foreground tabular-nums">
+                            {`${trade.ausdcAllocated.toLocaleString(undefined, { minimumFractionDigits: 2 })} aUSD`}
+                          </td>
+                          {/* Entry Price */}
+                          <td className="py-4 px-6 text-right text-muted tabular-nums">
+                            {trade.entryPrice === 0
+                              ? '—'
+                              : `$${trade.entryPrice.toLocaleString(undefined, { minimumFractionDigits: 4 })}`}
+                          </td>
+                          {/* Exit Price */}
+                          <td className="py-4 px-6 text-right text-muted tabular-nums">
+                            {trade.exitPrice && trade.exitPrice > 0
+                              ? `$${trade.exitPrice.toLocaleString(undefined, { minimumFractionDigits: 4 })}`
+                              : '—'}
+                          </td>
+                          {/* P&L */}
+                          <td className="py-4 px-6 text-right font-semibold tabular-nums">
+                            {trade.status === 'SKIPPED' ? (
+                              <span className="text-subtle">—</span>
+                            ) : (
+                              <span className={isProfit ? 'text-emerald-400' : 'text-red-400'}>
+                                {isProfit ? '+' : ''}
+                                ${trade.pnl.toFixed(2)}
+                                <span className="text-[11px] font-normal ml-1.5 opacity-80">
+                                  ({isProfit ? '+' : ''}
+                                  {trade.pnlPct.toFixed(2)}%)
+                                </span>
+                              </span>
+                            )}
+                          </td>
+                          {/* Status */}
+                          <td className="py-4 px-6 text-center">
+                            <div className="flex flex-col items-center justify-center gap-1">
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border uppercase ${
+                                trade.status === 'OPEN'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                  : trade.status === 'SKIPPED'
+                                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                  : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                              }`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${
+                                  trade.status === 'OPEN'
+                                    ? 'bg-emerald-400 animate-pulse'
+                                    : trade.status === 'SKIPPED'
+                                    ? 'bg-amber-400'
+                                    : 'bg-blue-400'
+                                }`} />
+                                {trade.status.toLowerCase()}
+                              </span>
+                              {trade.status === 'SKIPPED' && trade.reason && (
+                                <span className="text-[10px] text-amber-400/60 max-w-[120px] text-center leading-tight truncate" title={trade.reason}>
+                                  {trade.reason}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          {/* Date */}
+                          <td className="py-4 px-6 text-right text-subtle whitespace-nowrap">
+                            {trade.openedAt ? (
+                              new Date(trade.openedAt).toLocaleDateString(undefined, {
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })
+                            ) : '—'}
+                          </td>
+                          {/* Links */}
+                          <td className="py-4 px-6 text-center font-medium">
+                            <div className="flex items-center justify-center gap-3">
+                              {trade.txHashOpen && (
+                                <a
+                                  href={`https://testnet.somnia.exploreme.pro/tx/${trade.txHashOpen}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-subtle hover:text-foreground transition-colors"
+                                  title="Kickoff/Open Tx"
+                                >
+                                  Open ↗
+                                </a>
+                              )}
+                              {trade.txHashClose && (
+                                <a
+                                  href={`https://testnet.somnia.exploreme.pro/tx/${trade.txHashClose}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-subtle hover:text-foreground transition-colors"
+                                  title="Close Tx"
+                                >
+                                  Close ↗
+                                </a>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

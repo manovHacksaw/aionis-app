@@ -1,0 +1,338 @@
+'use client';
+
+import * as React from 'react';
+import { useState, use, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { useAccount } from 'wagmi';
+import { usePrivy } from '@privy-io/react-auth';
+import { useAUSD } from '@/hooks/useAUSD';
+import { useVault } from '@/hooks/useVault';
+import { MAINNET_TOKENS } from '@/config/tokens';
+import Avatar from '@/components/Avatar';
+
+const RISK_DESCRIPTIONS: Record<number, string> = {
+  1: 'Very conservative · max 5% per trade',
+  2: 'Conservative · max 10% per trade',
+  3: 'Moderate · max 20% per trade',
+  4: 'Aggressive · max 35% per trade',
+  5: 'Max risk · up to 50% per trade',
+};
+const RISK_MAX_PCT: Record<number, number> = { 1: 5, 2: 10, 3: 20, 4: 35, 5: 50 };
+
+const TokenLogo = ({ symbol }: { symbol: string }) => {
+  const sym = symbol.toUpperCase();
+  let src = '';
+  if (sym === 'WSOMI' || sym === 'SOMI') src = '/token-logos/WSOMI.png';
+  else if (sym === 'USDC.E' || sym === 'USDC') src = '/token-logos/USDC.png';
+
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={symbol}
+        className="w-5 h-5 rounded-full object-cover border border-border bg-surface flex-shrink-0"
+        onError={(e) => {
+          (e.target as HTMLElement).style.display = 'none';
+        }}
+      />
+    );
+  }
+
+  return (
+    <div className="w-5 h-5 rounded-full bg-gradient-to-br from-surface to-border border border-border/60 flex items-center justify-center text-[9px] text-muted font-bold uppercase flex-shrink-0 select-none">
+      {symbol.slice(0, 2)}
+    </div>
+  );
+};
+
+const AVAILABLE_TOKENS = [
+  { symbol: 'WSOMI',  address: MAINNET_TOKENS['WSOMI']  as `0x${string}` },
+  { symbol: 'USDC.e', address: MAINNET_TOKENS['USDC']   as `0x${string}` },
+  { symbol: 'NIA',    address: MAINNET_TOKENS['NIA']    as `0x${string}` },
+  { symbol: 'USDT',   address: MAINNET_TOKENS['USDT']   as `0x${string}` },
+];
+
+type LeaderStats = {
+  followerCount: number;
+  wsomiPrice:    number;
+  stats24h: { trades: number; volume: number; buys: number; sells: number };
+  lastSeen: string | null;
+  totalProfitYielded?: number;
+  recentSwaps?: any[];
+};
+
+function fmt(addr: string) { return `${addr.slice(0, 6)}…${addr.slice(-4)}`; }
+
+interface PageProps {
+  params: Promise<{ address: string }> | { address: string };
+}
+
+// ── Deploy Agent Form ─────────────────────────────────────────────────────────
+
+function CreateAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
+  const router = useRouter();
+  const { login } = usePrivy();
+  const { address, isConnected } = useAccount();
+  const { balance, canFaucet, cooldownSeconds, faucetPending, claimFaucet } = useAUSD();
+  const { createVault: createAgent, createPending } = useVault(leaderAddress);
+
+  const [selected, setSelected] = useState<Record<string, boolean>>({
+    [MAINNET_TOKENS['WSOMI']]:  true,
+    [MAINNET_TOKENS['USDC']]:   true,
+    [MAINNET_TOKENS['NIA']]:    false,
+    [MAINNET_TOKENS['USDT']]:   false,
+  });
+  const [amount,     setAmount]     = useState('');
+  const [riskLevel,  setRiskLevel]  = useState(3);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitErr,  setSubmitErr]  = useState<string | null>(null);
+
+  const cooldownH      = Math.floor(cooldownSeconds / 3600);
+  const cooldownM      = Math.ceil((cooldownSeconds % 3600) / 60);
+  const cooldownLabel  = cooldownH > 0 ? `${cooldownH}h ${cooldownM}m` : `${cooldownM}m`;
+  const parsedAmount   = parseFloat(amount) || 0;
+  const selectedTokens = Object.entries(selected).filter(([, v]) => v).map(([k]) => k as `0x${string}`);
+  const canSubmit      = parsedAmount > 0 && parsedAmount <= balance && selectedTokens.length > 0 && isConnected;
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!canSubmit) return;
+    setSubmitting(true);
+    setSubmitErr(null);
+    try {
+      await createAgent({ amountHuman: parsedAmount, riskLevel, maxPerTradePct: RISK_MAX_PCT[riskLevel], tokens: selectedTokens });
+      router.push('/portfolio');
+    } catch (err: any) {
+      setSubmitErr(err?.shortMessage ?? err?.message ?? 'Transaction failed');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {isConnected && (
+        <div className="bg-card border border-border/80 rounded-2xl px-5 py-4 flex items-center justify-between hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring animate-scale-in">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-foreground/40 mb-1">aUSD Balance</p>
+            <p className="text-[17px] font-light tabular-nums text-foreground">
+              {balance.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+              <span className="text-subtle text-[13px] ml-1.5">aUSD</span>
+            </p>
+          </div>
+          <button onClick={() => claimFaucet().catch(() => {})} disabled={!canFaucet || faucetPending}
+            className={`rounded-full border text-[12px] px-4 py-1.5 transition-spring hover:scale-105 active:scale-95 cursor-pointer disabled:scale-100 ${
+              canFaucet && !faucetPending
+                ? 'border-foreground/[0.18] text-foreground/80 hover:text-foreground hover:border-foreground/30'
+                : 'border-foreground/[0.07] text-foreground/30 cursor-not-allowed'
+            }`}>
+            {faucetPending ? 'Claiming…' : canFaucet ? 'Faucet' : cooldownLabel}
+          </button>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="bg-card border border-border/80 rounded-2xl p-6 space-y-6 animate-fade-in-up">
+        <div>
+          <h2 className="text-[20px] font-light tracking-tight text-foreground mb-1">Deploy Agent</h2>
+          <p className="text-foreground/40 text-[12px]">Lock aUSD to deploy a copy-trading agent and copy this leader&apos;s swaps automatically.</p>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <label className="text-[12px] text-foreground/60">aUSD Amount</label>
+            <span className="text-[12px] text-foreground/30">
+              Available: {balance.toLocaleString(undefined, { maximumFractionDigits: 2 })} aUSD
+            </span>
+          </div>
+          <div className="relative flex items-center">
+            <input type="number" min="0" step="any" value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="w-full bg-foreground/[0.03] border border-border rounded-xl px-4 py-3 text-[13px] text-foreground focus:outline-none focus:border-foreground/30 transition-all font-mono"
+              placeholder="0.00" />
+            <button type="button" onClick={() => setAmount(balance > 0 ? balance.toFixed(2) : '')}
+              className="absolute right-3 bg-foreground/10 hover:bg-foreground/20 text-foreground text-[10px] font-medium uppercase tracking-wider px-3 py-1.5 rounded-lg transition-spring hover:scale-105 active:scale-95 cursor-pointer">
+              Max
+            </button>
+          </div>
+          {parsedAmount > balance && balance > 0 && (
+            <p className="text-[11px] text-red-400">Exceeds your aUSD balance</p>
+          )}
+        </div>
+
+        <div className="space-y-3">
+          <label className="text-[12px] text-foreground/60 block">Risk Level</label>
+          <div className="flex gap-2">
+            {[1,2,3,4,5].map((level) => (
+              <button type="button" key={level} onClick={() => setRiskLevel(level)}
+                className={`flex-1 py-2.5 rounded-xl border text-[13px] font-light transition-spring hover:scale-105 active:scale-95 cursor-pointer ${
+                  riskLevel === level
+                    ? 'bg-accent/20 border-accent/50 text-accent'
+                    : 'bg-foreground/[0.03] border-foreground/10 text-foreground/50 hover:border-foreground/20 hover:text-foreground'
+                }`}>
+                {level}
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-accent/80">{RISK_DESCRIPTIONS[riskLevel]}</p>
+        </div>
+
+        <div className="space-y-3 pt-1">
+          <div>
+            <label className="text-[12px] text-foreground/60 block">Allowed Tokens</label>
+            <p className="text-[11px] text-foreground/30">Only copy trades for selected tokens</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {AVAILABLE_TOKENS.map(({ symbol, address }) => (
+              <label key={address} className="flex items-center gap-3 cursor-pointer group text-[13px] select-none">
+                <input type="checkbox" checked={!!selected[address]}
+                  onChange={() => setSelected(prev => ({ ...prev, [address]: !prev[address] }))}
+                  className="sr-only" />
+                <div className={`w-[18px] h-[18px] rounded border flex items-center justify-center flex-shrink-0 transition-all ${
+                  selected[address]
+                    ? 'border-accent bg-accent/10 text-accent'
+                    : 'border-foreground/10 bg-foreground/[0.02] group-hover:border-foreground/30 text-transparent'
+                }`}>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-3 h-3">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </div>
+                <div className="flex items-center gap-2">
+                  <TokenLogo symbol={symbol} />
+                  <span className="text-foreground/70 group-hover:text-foreground transition-colors">{symbol}</span>
+                </div>
+              </label>
+            ))}
+          </div>
+          {selectedTokens.length === 0 && <p className="text-[11px] text-red-400">Select at least one token</p>}
+        </div>
+
+        {submitErr && (
+          <p className="text-[12px] text-red-400 bg-red-400/5 border border-red-400/20 rounded-xl px-4 py-3 break-all">
+            {submitErr}
+          </p>
+        )}
+
+        {isConnected ? (
+          <button type="submit" disabled={!canSubmit || submitting || createPending}
+            className={`w-full rounded-full py-3 text-[14px] font-light tracking-wide transition-spring hover:scale-[1.01] active:scale-[0.99] cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed disabled:scale-100 ${
+              canSubmit && !submitting && !createPending
+                ? 'bg-accent text-accent-foreground hover:bg-accent-hover'
+                : 'bg-foreground/10 text-foreground/30 cursor-not-allowed'
+            }`}>
+            {submitting || createPending ? 'Confirm in wallet…' : 'Deploy Agent'}
+          </button>
+        ) : (
+          <button type="button" onClick={login}
+            className="w-full rounded-full border border-foreground/[0.18] bg-foreground/[0.03] text-foreground/90 text-[14px] font-light py-3 hover:bg-foreground/[0.08] hover:border-foreground/40 transition-spring hover:scale-[1.01] active:scale-[0.99] cursor-pointer">
+            Connect Wallet
+          </button>
+        )}
+
+        <p className="text-[10px] text-foreground/20 text-center leading-normal">
+          Your capital is secure. aUSD is locked in your personal copy-trading agent contract on Somnia Testnet (chain 50312). The keeper will execute copy trades on your agent&apos;s behalf.
+        </p>
+      </form>
+    </div>
+  );
+}
+
+export default function DeployAgentPage({ params }: PageProps) {
+  const resolvedParams = params instanceof Promise ? use(params) : params;
+  const leaderAddress  = resolvedParams.address as `0x${string}`;
+
+  const [stats,    setStats]    = useState<LeaderStats | null>(null);
+  const [statsErr, setStatsErr] = useState(false);
+
+  useEffect(() => {
+    if (!leaderAddress) return;
+    fetch(`/api/traders/${leaderAddress}`)
+      .then((r) => r.json())
+      .then(setStats)
+      .catch(() => setStatsErr(true));
+  }, [leaderAddress]);
+
+  const total24h  = (stats?.stats24h.buys ?? 0) + (stats?.stats24h.sells ?? 0);
+  const buyPct    = total24h > 0 ? Math.round((stats!.stats24h.buys / total24h) * 100) : 0;
+  const vol       = stats?.stats24h.volume ?? 0;
+  const volFmt    = vol >= 1000 ? `$${(vol / 1000).toFixed(1)}k` : `$${vol.toFixed(0)}`;
+  const profitYielded = stats?.totalProfitYielded ?? 0;
+  const profitFmt     = `${profitYielded >= 0 ? '+' : ''}${profitYielded.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} aUSD`;
+
+  return (
+    <div className="text-foreground px-[7.5%] py-8 w-full select-none">
+      <div className="mb-8">
+        <Link href={`/traders/${leaderAddress}`} className="text-foreground/40 hover:text-foreground text-sm transition-spring hover:scale-105 active:scale-95 flex items-center gap-2 w-fit">
+          <span>←</span> Back to Trader Profile
+        </Link>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        
+        {/* Left: Leader Stats Card */}
+        <div className="lg:col-span-5 space-y-4">
+          <div className="bg-card border border-border/80 rounded-2xl p-6 hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring animate-scale-in">
+            <div className="flex items-center gap-3 mb-6">
+              <Avatar address={leaderAddress} size={36} />
+              <div>
+                <div className="text-[10px] text-foreground/30 uppercase tracking-wide">Copying Leader</div>
+                <div className="font-mono text-sm tracking-tight text-foreground/90 mt-0.5">
+                  {fmt(leaderAddress)}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                {
+                  label: '24h Volume',
+                  value: statsErr ? '—' : stats ? volFmt : (
+                    <div className="h-6 w-16 bg-surface/40 rounded animate-shimmer mt-0.5" />
+                  )
+                },
+                {
+                  label: '24h Trades',
+                  value: statsErr ? '—' : stats ? String(stats.stats24h.trades) : (
+                    <div className="h-6 w-10 bg-surface/40 rounded animate-shimmer mt-0.5" />
+                  )
+                },
+                {
+                  label: 'Buy %',
+                  value: statsErr ? '—' : stats ? `${buyPct}%` : (
+                    <div className="h-6 w-12 bg-surface/40 rounded animate-shimmer mt-0.5" />
+                  ),
+                  color: !stats ? '' : buyPct >= 50 ? 'text-emerald-400' : 'text-red-400'
+                },
+                {
+                  label: 'Followers',
+                  value: statsErr ? '—' : stats ? String(stats.followerCount) : (
+                    <div className="h-6 w-8 bg-surface/40 rounded animate-shimmer mt-0.5" />
+                  )
+                },
+                {
+                  label: 'Total Profits Copy-Traded',
+                  value: statsErr ? '—' : stats ? profitFmt : (
+                    <div className="h-6 w-24 bg-surface/40 rounded animate-shimmer mt-0.5" />
+                  ),
+                  color: !stats ? '' : profitYielded >= 0 ? 'text-emerald-400' : 'text-red-400',
+                  fullWidth: true
+                },
+              ].map(({ label, value, color, fullWidth }) => (
+                <div key={label} className={fullWidth ? 'col-span-2 border-t border-foreground/[0.03] pt-3 mt-1' : ''}>
+                  <div className="text-[10px] uppercase tracking-wider text-foreground/40 mb-1">{label}</div>
+                  <div className={`text-md font-light tabular-nums ${color ?? 'text-foreground'}`}>{value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Right: Deploy Agent form */}
+        <div className="lg:col-span-7">
+          <CreateAgent leaderAddress={leaderAddress} />
+        </div>
+
+      </div>
+    </div>
+  );
+}

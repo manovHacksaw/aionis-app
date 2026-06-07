@@ -9,6 +9,6 @@ export const somniaTestnet = defineChain({
     public:  { http: ['https://dream-rpc.somnia.network'] },
   },
   blockExplorers: {
-    default: { name: 'Somnia Explorer', url: 'https://shannon-explorer.somnia.network' },
+    default: { name: 'Somnia Explorer', url: 'https://testnet.somnia.exploreme.pro' },
   },
 });

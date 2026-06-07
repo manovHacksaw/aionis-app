@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import Avatar from '@/components/Avatar';
 
 type Trader = {
   rank:     number;
@@ -55,23 +57,23 @@ export default function TradersPage() {
   const addressAlreadyExists = visible.some(t => t.address.toLowerCase() === queryAddress.toLowerCase());
 
   return (
-    <div className="text-white px-16 py-8 max-w-[1440px] mx-auto w-full select-none" style={{ fontFamily: "var(--font-geist-sans, system-ui)" }}>
+    <div className="text-foreground px-[7.5%] py-8 w-full select-none">
 
       {/* Header */}
       <div className="mb-10 flex flex-col md:flex-row md:items-end md:justify-between gap-6">
         <div>
-          <h1 className="text-[28px] font-light tracking-[-0.04em] text-white mb-1">Traders</h1>
-          <p className="text-[14px] text-neutral-400 font-normal">On-chain activity on Somnia mainnet.</p>
+          <h1 className="text-[28px] font-light tracking-[-0.04em] text-foreground mb-1">Discover</h1>
+          <p className="text-[14px] text-muted font-normal">On-chain activity on Somnia mainnet.</p>
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <div className="flex items-center gap-0.5 bg-[#191919] border border-zinc-800 rounded-xl p-1">
+          <div className="flex items-center gap-0.5 bg-surface border border-border rounded-xl p-1">
             {WINDOWS.map((w) => (
               <button
                 key={w}
                 onClick={() => setWindow(w)}
                 className={`px-3 py-1.5 rounded-lg text-[13px] transition-all duration-200 cursor-pointer ${
-                  window === w ? 'bg-white/10 text-white' : 'text-neutral-500 hover:text-neutral-300'
+                  window === w ? 'bg-foreground/10 text-foreground' : 'text-subtle hover:text-muted'
                 }`}
               >
                 {w}
@@ -84,31 +86,30 @@ export default function TradersPage() {
             placeholder="Search address…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="bg-[#191919] border border-zinc-800 rounded-xl px-4 py-2 text-[13px] text-white placeholder-neutral-700 focus:outline-none focus:border-white/20 transition-all w-48"
+            className="bg-surface border border-border rounded-xl px-4 py-2 text-[13px] text-foreground placeholder-subtle focus:outline-none focus:border-foreground/20 transition-all w-48"
           />
 
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as SortKey)}
-            className="bg-[#191919] border border-zinc-800 rounded-xl px-3 py-2 text-[13px] text-white focus:outline-none cursor-pointer"
+            className="bg-surface border border-border rounded-xl px-3 py-2 text-[13px] text-foreground focus:outline-none cursor-pointer"
           >
-            <option value="volume" className="bg-black">Volume</option>
-            <option value="trades" className="bg-black">Trades</option>
-            <option value="buys"   className="bg-black">Buys</option>
+            <option value="volume" className="bg-card">Volume</option>
+            <option value="trades" className="bg-card">Trades</option>
+            <option value="buys"   className="bg-card">Buys</option>
           </select>
         </div>
       </div>
 
       {/* Column headers */}
       {!error && (loading || visible.length > 0 || isValidAddress) && (
-        <div className="grid grid-cols-[2rem_1fr_6rem_6rem_5rem_6rem_7rem] gap-4 px-4 mb-2 text-[11px] uppercase tracking-widest text-neutral-700">
+        <div className="grid grid-cols-[2rem_1fr_6rem_6rem_5rem_6rem] gap-4 px-4 mb-2 text-[11px] uppercase tracking-widest text-subtle">
           <span>#</span>
           <span>Trader</span>
           <span className="text-right">Volume</span>
           <span className="text-right">Trades</span>
           <span className="text-right">Buy %</span>
           <span className="text-right">Last Active</span>
-          <span />
         </div>
       )}
 
@@ -117,33 +118,29 @@ export default function TradersPage() {
           {[...Array(5)].map((_, i) => (
             <div
               key={i}
-              className="grid grid-cols-[2rem_1fr_6rem_6rem_5rem_6rem_7rem] gap-4 items-center px-4 py-3.5 rounded-xl border border-transparent"
+              className="grid grid-cols-[2rem_1fr_6rem_6rem_5rem_6rem] gap-4 items-center px-4 py-3.5 rounded-xl border border-transparent animate-fade-in-up"
+              style={{ animationDelay: `${i * 50}ms` }}
             >
               {/* Rank */}
-              <div className="h-4 bg-zinc-800/40 rounded w-4 animate-pulse" />
+              <div className="h-4 rounded w-4 animate-shimmer" />
               
               {/* Avatar + Address */}
               <div className="flex items-center gap-3">
-                <div className="w-7 h-7 rounded-full bg-zinc-800/40 animate-pulse" />
-                <div className="h-4 bg-zinc-800/40 rounded w-24 animate-pulse" />
+                <div className="w-7 h-7 rounded-full animate-shimmer" />
+                <div className="h-4 rounded w-24 animate-shimmer" />
               </div>
               
               {/* Volume */}
-              <div className="h-4 bg-zinc-800/40 rounded w-16 ml-auto animate-pulse" />
+              <div className="h-4 rounded w-16 ml-auto animate-shimmer" />
               
               {/* Trades */}
-              <div className="h-4 bg-zinc-800/40 rounded w-10 ml-auto animate-pulse" />
+              <div className="h-4 rounded w-10 ml-auto animate-shimmer" />
               
               {/* Buy % */}
-              <div className="h-4 bg-zinc-800/40 rounded w-10 ml-auto animate-pulse" />
+              <div className="h-4 rounded w-10 ml-auto animate-shimmer" />
               
               {/* Last Seen */}
-              <div className="h-4 bg-zinc-800/40 rounded w-14 ml-auto animate-pulse" />
-              
-              {/* Action Button */}
-              <div className="flex justify-end">
-                <div className="h-7 bg-zinc-800/40 rounded-full w-14 animate-pulse" />
-              </div>
+              <div className="h-4 rounded w-14 ml-auto animate-shimmer" />
             </div>
           ))}
         </div>
@@ -152,9 +149,9 @@ export default function TradersPage() {
         <div className="py-24 text-center text-red-500/60 text-[14px]">{error}</div>
       )}
       {!loading && !error && visible.length === 0 && !isValidAddress && (
-        <div className="py-24 text-center border border-white/[0.05] rounded-2xl">
-          <p className="text-neutral-600 text-[14px] mb-1">No traders detected yet.</p>
-          <p className="text-neutral-700 text-[13px]">Start the watcher service to populate this list.</p>
+        <div className="py-24 text-center border border-foreground/[0.05] rounded-2xl">
+          <p className="text-subtle text-[14px] mb-1">No traders detected yet.</p>
+          <p className="text-subtle text-[13px]">Start the watcher service to populate this list.</p>
         </div>
       )}
 
@@ -163,35 +160,22 @@ export default function TradersPage() {
           {isValidAddress && !addressAlreadyExists && (
             <div
               key={queryAddress}
-              className="grid grid-cols-[2rem_1fr_6rem_6rem_5rem_6rem_7rem] gap-4 items-center px-4 py-3.5 rounded-xl border border-dashed border-zinc-800 bg-zinc-900/10 hover:border-zinc-700 transition-all duration-200"
+              onClick={() => router.push(`/traders/${queryAddress}`)}
+              className="grid grid-cols-[2rem_1fr_6rem_6rem_5rem_6rem] gap-4 items-center px-4 py-3.5 rounded-xl border border-dashed border-border bg-surface/10 hover:border-accent/40 hover:bg-surface/20 cursor-pointer transition-spring hover:translate-x-1 animate-fade-in-up"
             >
-              <span className="text-[12px] text-neutral-700 tabular-nums">—</span>
+              <span className="text-[12px] text-subtle tabular-nums">—</span>
 
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-zinc-700 to-zinc-800 flex-shrink-0" />
-                <a
-                  href={`https://explorer.somnia.network/address/${queryAddress}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-mono text-[13px] text-white/80 hover:text-amber-400 hover:underline decoration-amber-500/50 transition-colors truncate"
-                >
+                <Avatar address={queryAddress} size={28} />
+                <span className="font-mono text-[13px] text-foreground/80 truncate">
                   {fmt(queryAddress)}
-                </a>
+                </span>
               </div>
 
-              <span className="text-right text-[13px] text-neutral-600 tabular-nums">—</span>
-              <span className="text-right text-[13px] text-neutral-600 tabular-nums">—</span>
-              <span className="text-right text-[13px] text-neutral-600 tabular-nums">—</span>
-              <span className="text-right text-[12px] text-neutral-600 tabular-nums">—</span>
-
-              <div className="flex justify-end">
-                <button
-                  onClick={() => router.push(`/vault/${queryAddress}`)}
-                  className="rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-400 text-[12px] px-3 py-1.5 hover:bg-amber-500/20 hover:text-white transition-all duration-200 cursor-pointer whitespace-nowrap"
-                >
-                  Copy
-                </button>
-              </div>
+              <span className="text-right text-[13px] text-subtle tabular-nums">—</span>
+              <span className="text-right text-[13px] text-subtle tabular-nums">—</span>
+              <span className="text-right text-[13px] text-subtle tabular-nums">—</span>
+              <span className="text-right text-[12px] text-subtle tabular-nums">—</span>
             </div>
           )}
           {visible.map((trader) => {
@@ -200,46 +184,34 @@ export default function TradersPage() {
             return (
               <div
                 key={trader.address}
-                className="grid grid-cols-[2rem_1fr_6rem_6rem_5rem_6rem_7rem] gap-4 items-center px-4 py-3.5 rounded-xl border border-transparent hover:border-zinc-700/80 hover:bg-zinc-900/30 transition-all duration-200"
+                onClick={() => router.push(`/traders/${trader.address}`)}
+                className="grid grid-cols-[2rem_1fr_6rem_6rem_5rem_6rem] gap-4 items-center px-4 py-3.5 rounded-xl border border-transparent hover:border-accent/30 hover:bg-surface/30 cursor-pointer transition-spring hover:translate-x-1 animate-fade-in-up"
+                style={{ animationDelay: `${(trader.rank % 10) * 40}ms` }}
               >
-                <span className="text-[12px] text-neutral-700 tabular-nums">{trader.rank}</span>
+                <span className="text-[12px] text-subtle tabular-nums">{trader.rank}</span>
 
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex-shrink-0" />
-                  <a
-                    href={`https://explorer.somnia.network/address/${trader.address}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-mono text-[13px] text-white/80 hover:text-amber-400 hover:underline decoration-amber-500/50 transition-colors truncate"
-                  >
+                  <Avatar address={trader.address} size={28} />
+                  <span className="font-mono text-[13px] text-foreground/80 truncate">
                     {fmt(trader.address)}
-                  </a>
+                  </span>
                 </div>
 
-                <span className="text-right text-[13px] text-white/90 tabular-nums font-normal">
+                <span className="text-right text-[13px] text-foreground/90 tabular-nums font-normal">
                   ${trader.volume >= 1000
                     ? `${(trader.volume / 1000).toFixed(1)}k`
                     : trader.volume.toFixed(0)}
                 </span>
 
-                <span className="text-right text-[13px] text-white/90 tabular-nums">{trader.trades}</span>
+                <span className="text-right text-[13px] text-foreground/90 tabular-nums">{trader.trades}</span>
 
                 <span className={`text-right text-[13px] tabular-nums ${buyRatio >= 50 ? 'text-emerald-400' : 'text-red-400'}`}>
                   {buyRatio}%
                 </span>
 
-                <span className="text-right text-[12px] text-neutral-500 tabular-nums">
+                <span className="text-right text-[12px] text-subtle tabular-nums">
                   {timeAgo(trader.lastSeen)}
                 </span>
-
-                <div className="flex justify-end">
-                  <button
-                    onClick={() => router.push(`/vault/${trader.address}`)}
-                    className="rounded-full border border-white/[0.15] bg-transparent text-white/80 text-[12px] px-3 py-1.5 hover:text-white hover:border-white/30 transition-all duration-200 cursor-pointer whitespace-nowrap"
-                  >
-                    Copy
-                  </button>
-                </div>
               </div>
             );
           })}

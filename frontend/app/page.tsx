@@ -1,14 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import ConnectButton from "@/components/ConnectButton";
+import AppNavbar from "@/components/AppNavbar";
 import { usePrivy } from "@privy-io/react-auth";
+import { useAccount } from "wagmi";
+import { useAUSD } from "@/hooks/useAUSD";
+import Avatar from "@/components/Avatar";
 
 // ── Sparkline SVG ─────────────────────────────────────────────────────────────
 
-function Sparkline({ points, color = "#f59e0b" }: { points: [number, number][]; color?: string }) {
+function Sparkline({ points, color = "#e8b848" }: { points: [number, number][]; color?: string }) {
   const w = 110, h = 44;
   const xs = points.map(p => p[0]);
   const ys = points.map(p => p[1]);
@@ -21,7 +26,7 @@ function Sparkline({ points, color = "#f59e0b" }: { points: [number, number][]; 
   return (
     <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} fill="none">
       <path d={fd} fill={`${color}18`} />
-      <path d={d} stroke={color} strokeWidth="1.5" fill="none" strokeLinejoin="round" />
+      <path d={d} stroke={color} strokeWidth="1.5" fill="none" strokeLinejoin="round" pathLength="1" className="animate-draw-path" />
     </svg>
   );
 }
@@ -48,20 +53,20 @@ function MainChart() {
     <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
       <defs>
         <linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.22" />
-          <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.01" />
+          <stop offset="0%" stopColor="#e8b848" stopOpacity="0.22" />
+          <stop offset="100%" stopColor="#e8b848" stopOpacity="0.01" />
         </linearGradient>
       </defs>
       {yVs.map((yv, i) => (
         <g key={yv}>
-          <line x1={pad.l} y1={py(yv)} x2={W - pad.r} y2={py(yv)} stroke="#27272a" strokeWidth="1" strokeDasharray="4 3" />
-          <text x={W - pad.r + 6} y={py(yv) + 4} fill="#52525b" fontSize="10">{yLs[i]}</text>
+          <line x1={pad.l} y1={py(yv)} x2={W - pad.r} y2={py(yv)} stroke="var(--border)" strokeWidth="1" strokeDasharray="4 3" />
+          <text x={W - pad.r + 6} y={py(yv) + 4} fill="var(--subtle)" fontSize="10">{yLs[i]}</text>
         </g>
       ))}
       <path d={fd} fill="url(#cg)" />
-      <path d={d} stroke="#f59e0b" strokeWidth="2" fill="none" strokeLinejoin="round" />
+      <path d={d} stroke="#e8b848" strokeWidth="2" fill="none" strokeLinejoin="round" pathLength="1" className="animate-draw-path" />
       {xLs.map((l, i) => (
-        <text key={l} x={pad.l + (i / (xLs.length - 1)) * cw} y={H - 6} fill="#52525b" fontSize="9.5" textAnchor="middle">{l}</text>
+        <text key={l} x={pad.l + (i / (xLs.length - 1)) * cw} y={H - 6} fill="var(--subtle)" fontSize="9.5" textAnchor="middle">{l}</text>
       ))}
     </svg>
   );
@@ -80,19 +85,19 @@ function RateChart() {
     <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
       <defs>
         <linearGradient id="rg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.18" />
-          <stop offset="100%" stopColor="#f59e0b" stopOpacity="0" />
+          <stop offset="0%" stopColor="#e8b848" stopOpacity="0.18" />
+          <stop offset="100%" stopColor="#e8b848" stopOpacity="0" />
         </linearGradient>
       </defs>
       {[7.5,5.0,2.5].map((yv,i) => (
         <g key={yv}>
-          <line x1={4} y1={py(yv)} x2={W-54} y2={py(yv)} stroke="#27272a" strokeWidth="1" strokeDasharray="3 3" />
-          <text x={W-50} y={py(yv)+4} fill="#52525b" fontSize="9">{["7.50%","5.00%","2.50%"][i]}</text>
+          <line x1={4} y1={py(yv)} x2={W-54} y2={py(yv)} stroke="var(--border)" strokeWidth="1" strokeDasharray="3 3" />
+          <text x={W-50} y={py(yv)+4} fill="var(--subtle)" fontSize="9">{["7.50%","5.00%","2.50%"][i]}</text>
         </g>
       ))}
       <path d={fd} fill="url(#rg)" />
-      <path d={d} stroke="#f59e0b" strokeWidth="1.5" fill="none" strokeLinejoin="round" />
-      <text x={avg} y={py(5.4) - 4} fill="#a1a1aa" fontSize="9">Avg 5.94%</text>
+      <path d={d} stroke="#e8b848" strokeWidth="1.5" fill="none" strokeLinejoin="round" pathLength="1" className="animate-draw-path" />
+      <text x={avg} y={py(5.4) - 4} fill="var(--muted)" fontSize="9">Avg 5.94%</text>
     </svg>
   );
 }
@@ -101,7 +106,7 @@ function RateChart() {
 
 function Pill({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} className={`px-3.5 py-1.5 rounded-full text-[13px] font-medium transition-all cursor-pointer ${active ? "bg-amber-500 text-black" : "text-zinc-400 hover:text-white"}`}>
+    <button onClick={onClick} className={`px-3.5 py-1.5 rounded-full text-[13px] font-medium transition-all cursor-pointer ${active ? "bg-accent text-accent-foreground" : "text-subtle hover:text-foreground"}`}>
       {label}
     </button>
   );
@@ -109,7 +114,7 @@ function Pill({ label, active, onClick }: { label: string; active: boolean; onCl
 
 function InfoIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-600 flex-shrink-0">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-subtle flex-shrink-0">
       <circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>
     </svg>
   );
@@ -117,7 +122,7 @@ function InfoIcon() {
 
 function CopyIcon() {
   return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-600 hover:text-amber-400 transition-colors cursor-pointer">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-subtle hover:text-accent transition-colors cursor-pointer">
       <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
     </svg>
   );
@@ -134,12 +139,6 @@ type Trader = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const NAV_ITEMS = [
-  { label: "Dashboard", href: "/" },
-  { label: "Traders",   href: "/traders" },
-  { label: "Portfolio", href: "/portfolio" },
-  { label: "Vault",     href: "/vault" },
-];
 const TABS   = ["Overview", "Advanced", "Activity"];
 const MODES  = ["Copy Volume", "Supply", "Liquidity"];
 const RANGES = ["1h", "6h", "24h", "7d", "1M"];
@@ -150,17 +149,94 @@ const fmtVol  = (v: number) =>
   : v >= 1000    ? `$${(v / 1000).toFixed(1)}k`
   : `$${v.toFixed(0)}`;
 
+type Trade = {
+  id: string;
+  leader: string;
+  token: string;
+  ausdcAllocated: number;
+  entryPrice: number;
+  exitPrice: number | null;
+  pnl: number;
+  pnlPct: number;
+  status: 'OPEN' | 'CLOSED' | 'SKIPPED';
+  reason: string | null;
+  openedAt: string;
+  closedAt: string | null;
+};
+
+const TokenLogo = ({ symbol }: { symbol: string }) => {
+  const sym = symbol.toUpperCase();
+  let src = '';
+  if (sym === 'WSOMI' || sym === 'SOMI') src = '/token-logos/WSOMI.png';
+  else if (sym === 'USDC' || sym === 'USDC.E') src = '/token-logos/USDC.png';
+
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={symbol}
+        className="w-6 h-6 rounded-full object-cover border border-border bg-surface flex-shrink-0"
+        onError={(e) => {
+          (e.target as HTMLElement).style.display = 'none';
+        }}
+      />
+    );
+  }
+
+  return (
+    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-surface to-border border border-border/60 flex items-center justify-center text-[10px] text-muted font-bold uppercase flex-shrink-0 select-none">
+      {symbol.slice(0, 2)}
+    </div>
+  );
+};
+
+function PortfolioChart({ points }: { points: [number, number][] }) {
+  if (points.length === 0) return null;
+  const w = 320, h = 90;
+  const xs = points.map(p => p[0]);
+  const ys = points.map(p => p[1]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  
+  const px = (x: number) => ((x - minX) / (maxX - minX || 1)) * (w - 12) + 6;
+  const py = (y: number) => h - 6 - ((y - minY) / (maxY - minY || 1)) * (h - 16);
+  
+  const d = points.map(([x, y], i) => `${i === 0 ? "M" : "L"}${px(x).toFixed(1)},${py(y).toFixed(1)}`).join(" ");
+  const fd = `${d} L${px(maxX).toFixed(1)},${h} L${px(minX).toFixed(1)},${h} Z`;
+  
+  return (
+    <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} fill="none" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="pg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#e8b848" stopOpacity="0.22" />
+          <stop offset="100%" stopColor="#e8b848" stopOpacity="0.00" />
+        </linearGradient>
+      </defs>
+      <path d={fd} fill="url(#pg)" />
+      <path d={d} stroke="#e8b848" strokeWidth="2" fill="none" strokeLinejoin="round" pathLength="1" className="animate-draw-path" />
+    </svg>
+  );
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function Home() {
   const router   = useRouter();
   const pathname = usePathname();
   const { authenticated } = usePrivy();
+  const { address, isConnected } = useAccount();
+  const { balance } = useAUSD();
 
   const [tab,     setTab]     = useState("Overview");
   const [mode,    setMode]    = useState("Copy Volume");
   const [range,   setRange]   = useState("1M");
   const [traders, setTraders] = useState<Trader[]>([]);
+  const [portfolioSummary, setPortfolioSummary] = useState<{ totalLocked: number; totalPnl: number } | null>(null);
+  const [topTraderWindow, setTopTraderWindow] = useState<'1h' | '6h' | '24h'>('6h');
+  const [topTraders, setTopTraders] = useState<Trader[]>([]);
+  const [topTradersLoading, setTopTradersLoading] = useState(false);
+  const [recentUserTrades, setRecentUserTrades] = useState<Trade[]>([]);
+  const [allTrades, setAllTrades] = useState<Trade[]>([]);
 
   useEffect(() => {
     fetch("/api/traders/leaderboard?window=24h")
@@ -169,92 +245,144 @@ export default function Home() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    setTopTradersLoading(true);
+    fetch(`/api/traders/leaderboard?window=${topTraderWindow}`)
+      .then((r) => r.json())
+      .then((d) => { setTopTraders(d.traders?.length ? d.traders.slice(0, 3) : []); })
+      .catch(() => {})
+      .finally(() => setTopTradersLoading(false));
+  }, [topTraderWindow]);
+
+  useEffect(() => {
+    if (!address) return;
+    fetch(`/api/vaults/${address}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.summary) {
+          setPortfolioSummary(d.summary);
+        }
+      })
+      .catch(() => {});
+  }, [address]);
+
+  useEffect(() => {
+    if (!address) {
+      setRecentUserTrades([]);
+      setAllTrades([]);
+      return;
+    }
+    fetch(`/api/trades?address=${address}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.trades?.length) {
+          // Float OPEN trades to top, then by most recent
+          const sorted = [...d.trades].sort((a: Trade, b: Trade) => {
+            if (a.status === 'OPEN' && b.status !== 'OPEN') return -1;
+            if (b.status === 'OPEN' && a.status !== 'OPEN') return 1;
+            return new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime();
+          });
+          setRecentUserTrades(sorted.slice(0, 5));
+          setAllTrades(d.trades);
+        }
+      })
+      .catch(() => {});
+  }, [address]);
+
+  const portfolioValue = (portfolioSummary?.totalLocked ?? 0) + (portfolioSummary?.totalPnl ?? 0) + (balance ?? 0);
+  const portfolioPnl = portfolioSummary?.totalPnl ?? 0;
+  const portfolioPnlPct = (portfolioSummary?.totalLocked ?? 0) > 0 ? (portfolioPnl / portfolioSummary!.totalLocked) * 100 : 0;
+
+  const chartPoints = useMemo(() => {
+    const closedTrades = allTrades
+      .filter((t) => t.status === 'CLOSED' && t.closedAt)
+      .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
+
+    const totalRealizedPnl = closedTrades.reduce((sum, t) => sum + (t.pnl ?? 0), 0);
+    const baseline = portfolioValue - totalRealizedPnl - portfolioPnl;
+
+    const points: number[] = [];
+
+    if (closedTrades.length === 0) {
+      // If no closed trades, generate a beautiful organic simulated chart leading to the current value
+      const steps = 10;
+      const baseVal = baseline > 0 ? baseline : 10000;
+      const finalVal = portfolioValue > 0 ? portfolioValue : 10000;
+      const diff = finalVal - baseVal;
+      
+      for (let i = 0; i < steps; i++) {
+        // Add an organic curve with noise
+        const pct = i / (steps - 1);
+        const noise = Math.sin(i * 1.7) * (baseVal * 0.001); // 0.1% noise
+        points.push(baseVal + diff * pct + noise);
+      }
+    } else {
+      // Start with the baseline
+      points.push(baseline);
+      let tempVal = baseline;
+      for (const t of closedTrades) {
+        tempVal += t.pnl ?? 0;
+        points.push(tempVal);
+      }
+      // Add current live value
+      points.push(portfolioValue);
+    }
+
+    // Map to [x, y] coordinates for PortfolioChart
+    return points.map((val, idx) => [idx, val] as [number, number]);
+  }, [allTrades, portfolioValue, portfolioPnl]);
+
   return (
-    <div className="min-h-screen bg-[#0d0d0d] text-white flex flex-col select-none" style={{ fontFamily: "var(--font-geist-sans, system-ui)" }}>
+    <div className="min-h-screen bg-background text-foreground flex flex-col select-none">
 
       {/* ── Navbar ─────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-50 bg-[#0d0d0d] backdrop-blur-md flex-shrink-0">
-        <div className="h-[60px] flex items-center px-16 gap-8 max-w-[1440px] mx-auto w-full mt-8">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 flex-shrink-0">
-            <div className="w-6 h-6 rounded-md bg-amber-500 flex items-center justify-center flex-shrink-0">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="black" />
-              </svg>
-            </div>
-            <span className="text-[15px] font-semibold tracking-tight">Aionis</span>
-          </Link>
-
-          {/* Nav */}
-          <nav className="flex items-center gap-1">
-            {NAV_ITEMS.map(({ label, href }) => {
-              const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
-              return (
-                <Link
-                  key={label}
-                  href={href}
-                  className={`px-4 py-1.5 rounded-full text-[13.5px] font-medium transition-all duration-200 cursor-pointer ${
-                    active ? "bg-amber-500 text-black" : "text-zinc-400 hover:text-white"
-                  }`}
-                >
-                  {label}
-                </Link>
-              );
-            })}
-          </nav>
-
-          <div className="flex-1" />
-
-          <button className="flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[13px] text-zinc-300 hover:text-white transition-colors cursor-pointer">
-            Somnia
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m6 9 6 6 6-6"/></svg>
-          </button>
-
-          <ConnectButton />
-        </div>
-      </header>
+      <AppNavbar />
 
       {/* ── Body ───────────────────────────────────────────────────── */}
-      <div className="flex flex-1 gap-5 px-16 pt-8 pb-6 w-full max-w-[1440px] mx-auto overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-[6fr_4fr] gap-6 px-[7.5%] pt-8 pb-6 w-full flex-1 overflow-hidden">
 
-        {/* ── Main column ───────────────────────────────────────── */}
-        <div className="flex-1 flex flex-col gap-4 min-w-0 overflow-y-auto" style={{ scrollbarWidth: "none" }}>
+        {/* ── Main column (60%) ──────────────────────────────────── */}
+        <div className="flex flex-col gap-4 min-w-0 overflow-y-auto" style={{ scrollbarWidth: "none" }}>
 
           {/* Hero card */}
-          <div className="bg-[#141414] border border-zinc-800/80 rounded-2xl p-6">
+          <div className="bg-card border border-border/80 rounded-2xl p-6 animate-fade-in-up stagger-1 hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring">
             <div className="flex items-center gap-3 mb-5">
               <div className="relative w-12 h-9 flex-shrink-0">
-                <div className="absolute left-0 top-0 w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 border-2 border-[#141414] flex items-center justify-center">
-                  <span className="text-[9px] text-black font-bold">W</span>
-                </div>
-                <div className="absolute left-4 top-0 w-8 h-8 rounded-full bg-gradient-to-br from-zinc-200 to-zinc-400 border-2 border-[#141414] flex items-center justify-center">
-                  <span className="text-[9px] text-black font-bold">$</span>
-                </div>
+                <img
+                  src="/token-logos/WSOMI.png"
+                  alt="WSOMI"
+                  className="absolute left-0 top-0 w-8 h-8 rounded-full border-2 border-card object-cover bg-surface"
+                />
+                <img
+                  src="/token-logos/USDC.png"
+                  alt="USDC"
+                  className="absolute left-4 top-0 w-8 h-8 rounded-full border-2 border-card object-cover bg-surface"
+                />
               </div>
-              <h1 className="text-[24px] font-semibold tracking-tight">WSOMI / USDC.e</h1>
-              <span className="text-[12px] bg-zinc-800 border border-zinc-700 rounded-full px-2.5 py-0.5 text-zinc-300">98%</span>
-              <span className="text-[12px] bg-zinc-800/50 border border-zinc-700/60 rounded-full px-2.5 py-0.5 text-zinc-400 flex items-center gap-1 cursor-pointer hover:border-zinc-600 transition-colors">
+              <h1 className="text-[24px] font-semibold tracking-tight">WSOMI / USDC</h1>
+              <span className="text-[12px] bg-surface border border-border rounded-full px-2.5 py-0.5 text-muted">98%</span>
+              <span className="text-[12px] bg-surface/50 border border-border/60 rounded-full px-2.5 py-0.5 text-subtle flex items-center gap-1 cursor-pointer hover:border-subtle/40 transition-colors">
                 Live Rate <InfoIcon />
               </span>
             </div>
 
             <div className="grid grid-cols-3 gap-6">
               {[
-                { l: "Total Copy Volume", v: "$65.68M", s: "65.68M USDC.e" },
-                { l: "Active Vaults",     v: "$32.76M", s: "65.68M WSOMI"  },
+                { l: "Total Copy Volume", v: "$65.68M", s: "65.68M USDC" },
+                { l: "Active Agents",     v: "$32.76M", s: "65.68M WSOMI"  },
                 { l: "Avg Copy Rate",     v: "6.19%",   s: "65.68M aUSD"   },
               ].map(({ l, v, s }) => (
                 <div key={l}>
-                  <div className="flex items-center gap-1 text-[11px] text-zinc-500 mb-1.5"><span>{l}</span><InfoIcon /></div>
-                  <div className="text-[26px] font-semibold tabular-nums">{v}</div>
-                  <div className="text-[11px] text-zinc-500 mt-0.5">{s}</div>
+                  <div className="flex items-center gap-1 text-[11px] text-subtle mb-1.5"><span>{l}</span><InfoIcon /></div>
+                  <div className="text-[28px] font-light tabular-nums tracking-tight">{v}</div>
+                  <div className="text-[11px] text-subtle mt-0.5">{s}</div>
                 </div>
               ))}
             </div>
           </div>
 
           {/* Tabs + trader cards */}
-          <div className="bg-[#141414] border border-zinc-800/80 rounded-2xl p-6">
+          <div className="bg-card border border-border/80 rounded-2xl p-6 animate-fade-in-up stagger-2">
             <div className="flex items-center gap-1 mb-4">
               {TABS.map(t => <Pill key={t} label={t} active={tab === t} onClick={() => setTab(t)} />)}
             </div>
@@ -262,11 +390,11 @@ export default function Home() {
               {traders.map((trader) => (
                 <div
                   key={trader.address}
-                  onClick={() => router.push(`/vault/${trader.address}`)}
-                  className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-4 hover:border-amber-500/30 transition-colors cursor-pointer"
+                  onClick={() => router.push(`/traders/${trader.address}`)}
+                  className="bg-surface/60 border border-border rounded-xl p-4 hover:border-accent/50 hover:shadow-md hover:shadow-accent/5 transition-spring hover:scale-[1.03] active:scale-98 cursor-pointer"
                 >
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Top Trader #{trader.rank}</span>
+                    <span className="text-[10px] text-subtle uppercase tracking-wider">Top Trader #{trader.rank}</span>
                     <CopyIcon />
                   </div>
                   <div className="flex items-center gap-1.5 mb-3">
@@ -275,13 +403,13 @@ export default function Home() {
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}
-                      className="font-mono text-[12px] text-white/85 hover:text-amber-400 hover:underline decoration-amber-500/50 transition-colors"
+                      className="font-mono text-[12px] text-foreground/85 hover:text-accent hover:underline decoration-accent/50 transition-colors"
                     >
                       {fmtAddr(trader.address)}
                     </a>
-                    <span className="text-[10px] bg-amber-500/15 text-amber-400 px-1.5 py-0.5 rounded font-medium">{trader.trades}tx</span>
+                    <span className="text-[10px] bg-accent/15 text-accent px-1.5 py-0.5 rounded font-medium">{trader.trades}tx</span>
                   </div>
-                  <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-0.5">24h Volume</div>
+                  <div className="text-[10px] text-subtle uppercase tracking-wider mb-0.5">24h Volume</div>
                   <div className="text-[14px] font-semibold">{fmtVol(trader.volume)}</div>
                 </div>
               ))}
@@ -290,21 +418,21 @@ export default function Home() {
                   {[...Array(4)].map((_, i) => (
                     <div
                       key={i}
-                      className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-4 animate-pulse flex flex-col justify-between"
+                      className="bg-surface/60 border border-border rounded-xl p-4 animate-pulse flex flex-col justify-between"
                     >
                       <div>
                         <div className="flex items-center justify-between mb-3">
-                          <div className="h-3 bg-zinc-800/40 rounded w-20" />
-                          <div className="w-3.5 h-3.5 bg-zinc-800/40 rounded-sm" />
+                          <div className="h-3 bg-border/40 rounded w-20" />
+                          <div className="w-3.5 h-3.5 bg-border/40 rounded-sm" />
                         </div>
                         <div className="flex items-center gap-1.5 mb-3">
-                          <div className="h-4 bg-zinc-800/40 rounded w-24" />
-                          <div className="h-4 bg-zinc-800/40 rounded w-8" />
+                          <div className="h-4 bg-border/40 rounded w-24" />
+                          <div className="h-4 bg-border/40 rounded w-8" />
                         </div>
                       </div>
                       <div>
-                        <div className="h-3 bg-zinc-800/40 rounded w-16 mb-1.5" />
-                        <div className="h-4 bg-zinc-800/40 rounded w-20" />
+                        <div className="h-3 bg-border/40 rounded w-16 mb-1.5" />
+                        <div className="h-4 bg-border/40 rounded w-20" />
                       </div>
                     </div>
                   ))}
@@ -314,18 +442,18 @@ export default function Home() {
           </div>
 
           {/* Volume chart */}
-          <div className="bg-[#141414] border border-zinc-800/80 rounded-2xl p-6">
+          <div className="bg-card border border-border/80 rounded-2xl p-6 animate-fade-in-up stagger-3">
             <div className="flex items-start justify-between mb-1">
               <div>
-                <div className="flex items-center gap-1 text-[11px] text-zinc-500 mb-1">Total Copy Volume (USD) <InfoIcon /></div>
-                <div className="text-[28px] font-semibold tabular-nums">$59.19M</div>
-                <div className="text-[11px] text-zinc-500 mt-0.5">65.68M USDC.e</div>
+                <div className="flex items-center gap-1 text-[11px] text-subtle mb-1">Total Copy Volume (USD) <InfoIcon /></div>
+                <div className="text-[28px] font-light tabular-nums tracking-tight">$59.19M</div>
+                <div className="text-[11px] text-subtle mt-0.5">65.68M USDC</div>
               </div>
               <div className="flex items-center gap-2">
-                <div className="flex items-center gap-0.5 bg-zinc-900 border border-zinc-800 rounded-full p-0.5">
+                <div className="flex items-center gap-0.5 bg-surface border border-border rounded-full p-0.5">
                   {MODES.map(m => <Pill key={m} label={m} active={mode === m} onClick={() => setMode(m)} />)}
                 </div>
-                <div className="flex items-center gap-0.5 bg-zinc-900 border border-zinc-800 rounded-full p-0.5">
+                <div className="flex items-center gap-0.5 bg-surface border border-border rounded-full p-0.5">
                   {RANGES.map(r => <Pill key={r} label={r} active={range === r} onClick={() => setRange(r)} />)}
                 </div>
               </div>
@@ -334,16 +462,16 @@ export default function Home() {
           </div>
 
           {/* Rate chart */}
-          <div className="bg-[#141414] border border-zinc-800/80 rounded-2xl p-6">
+          <div className="bg-card border border-border/80 rounded-2xl p-6 animate-fade-in-up stagger-4">
             <div className="flex items-start justify-between mb-3">
               <div>
-                <div className="flex items-center gap-1 text-[11px] text-zinc-500 mb-1">Copy Rate <InfoIcon /></div>
+                <div className="flex items-center gap-1 text-[11px] text-subtle mb-1">Copy Rate <InfoIcon /></div>
                 <div className="flex items-end gap-0.5">
-                  <span className="text-[28px] font-semibold tabular-nums">6.19</span>
-                  <span className="text-[18px] font-semibold text-zinc-400 mb-0.5">%</span>
+                  <span className="text-[28px] font-light tabular-nums tracking-tight">6.19</span>
+                  <span className="text-[18px] font-light text-muted mb-0.5">%</span>
                 </div>
               </div>
-              <button className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-full px-3 py-1 text-[12px] text-zinc-400 hover:border-zinc-700 transition-colors cursor-pointer">
+              <button className="flex items-center gap-1 bg-surface border border-border rounded-full px-3 py-1 text-[12px] text-muted hover:border-subtle/40 transition-colors cursor-pointer">
                 1 month <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m6 9 6 6 6-6"/></svg>
               </button>
             </div>
@@ -351,12 +479,12 @@ export default function Home() {
               <div className="flex-1 h-[110px]"><RateChart /></div>
               <div className="w-48 flex flex-col justify-center gap-3">
                 {[
-                  { l: "Native Copy Rate", v: "6.19%",  c: "text-white",       dot: "bg-amber-500"   },
-                  { l: "Net Rate",         v: "+0.19%", c: "text-amber-400",   dot: "bg-amber-400"   },
+                  { l: "Native Copy Rate", v: "6.19%",  c: "text-foreground",  dot: "bg-accent"      },
+                  { l: "Net Rate",         v: "+0.19%", c: "text-accent",      dot: "bg-accent/80"   },
                   { l: "WSOMI Yield",      v: "+6.43%", c: "text-emerald-400", dot: "bg-emerald-400" },
                 ].map(({ l, v, c, dot }) => (
                   <div key={l} className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
+                    <div className="flex items-center gap-1.5 text-[11px] text-muted">
                       <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dot}`} />{l}
                     </div>
                     <span className={`text-[12px] font-medium tabular-nums ${c}`}>{v}</span>
@@ -367,83 +495,162 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ── Sidebar ──────────────────────────────────────────── */}
-        <div className="w-[280px] flex-shrink-0 flex flex-col gap-4">
+        {/* ── Sidebar / Right Column (40%) ─────────────────────── */}
+        <div className="flex flex-col gap-6 min-w-0 overflow-y-auto" style={{ scrollbarWidth: "none" }}>
 
-          {/* Supply cards */}
-          {[
-            { title: "Allocate to Vault (WSOMI)", spark: SPARK1, badge: "+$2,853" },
-            { title: "Withdraw aUSD",             spark: SPARK2, badge: "+$1,100" },
-          ].map(({ title, spark, badge }) => (
-            <div key={title} className="bg-[#141414] border border-zinc-800/80 rounded-2xl p-5">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[12px] text-zinc-400">{title}</span>
-                <div className="w-6 h-6 rounded-full bg-amber-500/20 flex items-center justify-center">
-                  <div className="w-3 h-3 rounded-full bg-amber-500/60" />
-                </div>
-              </div>
-              <div className="flex items-end justify-between">
-                <div>
-                  <div className="text-[20px] font-light tabular-nums">0.00</div>
-                  <div className="text-[11px] text-zinc-500 mt-0.5">0%</div>
-                </div>
-                <div className="relative">
-                  <Sparkline points={spark} />
-                  <div className="absolute -top-1 right-0 bg-amber-500 text-black text-[9px] font-bold px-1.5 py-0.5 rounded">
-                    {badge}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-
-          {/* Position panel */}
-          <div className="bg-[#141414] border border-zinc-800/80 rounded-2xl p-4 flex flex-col gap-4">
-            <div className="flex items-start justify-between">
+          {/* Portfolio Chart Card */}
+          <div className="bg-card border border-border/80 rounded-2xl p-5 hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring animate-scale-in">
+            <div className="flex items-start justify-between mb-4">
               <div>
-                <div className="text-[11px] text-zinc-500 mb-0.5">Your vault position (WSOMI)</div>
-                <div className="text-[20px] font-light tabular-nums">0.00</div>
+                <p className="text-[11px] text-subtle uppercase tracking-wider mb-1">Portfolio Value</p>
+                <h2 className="text-[28px] font-light tracking-tight text-foreground tabular-nums">
+                  ${portfolioValue > 0 ? portfolioValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : (balance ? balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "10,000.00")}
+                </h2>
+                <div className="flex items-center gap-1.5 mt-1 text-[11px]">
+                  <span className={portfolioPnl >= 0 ? "text-emerald-400" : "text-red-400 font-semibold"}>
+                    {portfolioPnl >= 0 ? "+" : ""}${portfolioPnl.toFixed(2)} ({portfolioPnlPct >= 0 ? "+" : ""}{portfolioPnlPct.toFixed(1)}%)
+                  </span>
+                  <span className="text-subtle">Unrealized Profits</span>
+                </div>
               </div>
-              <div className="w-6 h-6 rounded-full bg-amber-500/20 flex items-center justify-center">
-                <div className="w-3 h-3 rounded-full bg-amber-500/50" />
-              </div>
-            </div>
-
-            <div>
-              <div className="text-[11px] text-zinc-500 mb-0.5">Unrealized P&L (aUSD)</div>
-              <div className="text-[20px] font-light tabular-nums">0.00</div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between text-[11px] mb-2">
-                <span className="text-zinc-500">Risk Level / Max Risk</span>
-                <span className="font-medium text-white">0% / 89%</span>
-              </div>
-              <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                <div className="h-full w-0 bg-amber-500 rounded-full transition-all" />
+              <div className="text-[11px] bg-surface border border-border rounded-full px-2.5 py-0.5 text-muted font-normal">
+                Live Equity
               </div>
             </div>
-
-            <div className="flex gap-1">
-              {[1,2,3,4,5].map(d => (
-                <div key={d} className="flex-1 h-1 rounded-full bg-zinc-800" />
-              ))}
+            
+            <div className="h-[90px] w-full mt-2">
+              <PortfolioChart points={chartPoints} />
             </div>
           </div>
 
-          {/* CTA */}
-          {authenticated ? (
-            <button
-              onClick={() => router.push("/traders")}
-              className="w-full bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-black font-semibold text-[14px] py-3 rounded-xl transition-colors cursor-pointer"
-            >
-              Browse Traders
-            </button>
-          ) : (
-            <ConnectButton fullWidth />
-          )}
+          {/* Top Traders — windowed */}
+          <div className="bg-card border border-border/80 rounded-2xl p-5 hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring animate-scale-in stagger-2">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[12px] font-semibold uppercase tracking-wider text-foreground">Top Traders</h3>
+              {/* Time-window pill switcher */}
+              <div className="flex items-center bg-surface/60 border border-border/40 rounded-full p-0.5 gap-0.5">
+                {(['1h', '6h', '24h'] as const).map((w) => (
+                  <button
+                    key={w}
+                    type="button"
+                    onClick={() => setTopTraderWindow(w)}
+                    className={`text-[10px] font-mono uppercase px-2.5 py-1 rounded-full transition-spring cursor-pointer ${
+                      topTraderWindow === w
+                        ? 'bg-accent text-accent-foreground shadow-sm shadow-accent/20'
+                        : 'text-subtle hover:text-foreground'
+                    }`}
+                  >
+                    {w}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div className="flex flex-col gap-2.5">
+              {topTradersLoading ? (
+                [1, 2, 3].map((i) => (
+                  <div key={i} className="h-[52px] bg-surface/50 border border-border/60 rounded-xl animate-shimmer" style={{ animationDelay: `${i * 60}ms` }} />
+                ))
+              ) : topTraders.length === 0 ? (
+                <div className="py-4 text-center">
+                  <p className="text-[12px] text-subtle">No active trades in the last {topTraderWindow}.</p>
+                </div>
+              ) : (
+                topTraders.map((trader, i) => (
+                  <div
+                    key={trader.address}
+                    onClick={() => router.push('/traders')}
+                    className="bg-surface/50 border border-border/60 rounded-xl p-3 flex items-center justify-between hover:border-accent/40 hover:bg-surface/80 transition-spring hover:scale-[1.02] active:scale-98 cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
 
-          <p className="text-[10px] text-zinc-600 text-center leading-relaxed px-1">
+                      <Avatar address={trader.address} size={28} />
+                      <span className="font-mono text-[12px] text-foreground/80 truncate">
+                        {fmtAddr(trader.address)}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] text-subtle uppercase tracking-wider">{topTraderWindow} Volume</p>
+                      <p className="text-[13px] font-semibold tabular-nums text-foreground/90">{fmtVol(trader.volume)}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Transaction History */}
+          <div className="bg-card border border-border/80 rounded-2xl p-5 hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring animate-scale-in stagger-3">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[12px] font-semibold uppercase tracking-wider text-foreground">Transaction History</h3>
+              {authenticated && recentUserTrades.length > 0 && (
+                <Link href="/trades" className="text-[11px] text-accent hover:underline cursor-pointer">
+                  View all
+                </Link>
+              )}
+            </div>
+
+            {!authenticated ? (
+              <div className="py-6 text-center">
+                <p className="text-subtle text-[12px] mb-3">Connect wallet to view transactions.</p>
+                <ConnectButton fullWidth />
+              </div>
+            ) : recentUserTrades.length === 0 ? (
+              <div className="py-4 text-center">
+                <p className="text-[12px] text-subtle">No trades copied yet.</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2.5">
+                {recentUserTrades.map((trade) => {
+                  const isProfit = trade.pnl >= 0;
+                  const isOpen   = trade.status === 'OPEN';
+                  
+                  return (
+                    <div
+                      key={trade.id}
+                      onClick={() => router.push(`/traders/${trade.leader}`)}
+                      className={`bg-surface/50 border rounded-xl p-3 flex items-center justify-between hover:bg-surface/80 transition-spring hover:scale-[1.02] active:scale-98 cursor-pointer ${
+                        isOpen ? 'border-emerald-500/30 hover:border-emerald-400/50' : 'border-border/60 hover:border-accent/40'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <TokenLogo symbol={trade.token} />
+                        <div className="min-w-0">
+                          <p className="text-[12px] font-medium text-foreground truncate">
+                            {trade.token}
+                          </p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[10.5px] font-mono text-accent font-medium">
+                              {fmtAddr(trade.leader)}
+                            </span>
+                            <span className="text-[9px] text-border">•</span>
+                            {isOpen ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-semibold uppercase tracking-wider">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                Open
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-subtle uppercase tracking-wider">Closed</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className={`text-[12px] font-semibold tabular-nums ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {isProfit ? '+' : ''}{trade.pnl.toFixed(2)} aUSD
+                        </p>
+                        <p className="text-[10px] text-subtle mt-0.5 tabular-nums">
+                          {trade.ausdcAllocated} aUSD
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <p className="text-[10px] text-subtle text-center leading-relaxed px-1">
             aUSD is locked in a smart contract on Somnia Testnet (chain 50312). A keeper executes copy trades on your behalf.
           </p>
         </div>

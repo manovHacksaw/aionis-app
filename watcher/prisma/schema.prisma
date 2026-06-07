@@ -116,3 +116,21 @@ model TokenPrice {
 
   @@map("token_prices")
 }
+
+model TradeExplanation {
+  requestId   String   @id @map("request_id")
+  explanation String   @map("explanation")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("trade_explanations")
+}
+
+model FollowerProfile {
+  follower      String   @id @map("follower")
+  email         String   @map("email")
+  notifications Boolean  @default(true) @map("notifications")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("follower_profiles")
+}

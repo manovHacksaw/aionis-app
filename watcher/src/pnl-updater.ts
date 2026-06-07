@@ -6,6 +6,7 @@ export function startPnlUpdater(db: Db): () => void {
   const timer = setInterval(async () => {
     try {
       const price     = await getCurrentWsomiPrice();
+      await db.upsertTokenPrice('WSOMI', price);
       const positions = await db.getAllOpenPositions();
       for (const pos of positions) {
         const pct = (price - pos.entryPrice) / pos.entryPrice;

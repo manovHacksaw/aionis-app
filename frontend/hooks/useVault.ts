@@ -2,7 +2,7 @@
 
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi';
 import { parseUnits, keccak256, encodePacked } from 'viem';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAUSD } from '@/hooks/useAUSD';
 import VAULT_ABI from '@/contracts/artifacts/contracts/VaultManager.sol/VaultManager.json';
 
@@ -50,14 +50,6 @@ export function useVault(leaderAddress?: `0x${string}`) {
     query:        { enabled, refetchInterval: 15_000 },
   });
 
-  // Contract signature: getUnrealizedPnL(address follower, address leader)
-  const { data: rawPnL } = useReadContract({
-    address:      VAULT_MANAGER,
-    abi:          VAULT_ABI.abi,
-    functionName: 'getUnrealizedPnL',
-    args:         [follower ?? '0x0', leaderAddress ?? '0x0'],
-    query:        { enabled, refetchInterval: 15_000 },
-  });
 
   // Contract signature: getFreeBalance(address follower, address leader)
   const { data: rawFreeBalance } = useReadContract({
@@ -93,7 +85,60 @@ export function useVault(leaderAddress?: `0x${string}`) {
     status: number; keeper: `0x${string}`;
   } | undefined;
 
-  const unrealizedPnL  = rawPnL         !== undefined ? Number(rawPnL  as bigint) / 10 ** DECIMALS : null;
+  const [unrealizedPnL, setUnrealizedPnL] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!follower || !leaderAddress || !openPositionIds || !publicClient) {
+      setUnrealizedPnL(0);
+      return;
+    }
+
+    let active = true;
+
+    async function fetchPnL() {
+      try {
+        let total = 0;
+        const ids = openPositionIds as readonly `0x${string}`[];
+        
+        for (const id of ids) {
+          const pos = await publicClient!.readContract({
+            address: VAULT_MANAGER,
+            abi: VAULT_ABI.abi,
+            functionName: 'positions',
+            args: [id],
+          }) as any;
+
+          const tokenAddress = pos[3] as string;
+          const ausdAllocated = Number(pos[4]) / 1e6;
+          const entryPrice = Number(pos[5]) / 1e10;
+
+          if (entryPrice > 0) {
+            const res = await fetch(`/api/price/${tokenAddress}`);
+            const data = await res.json();
+            if (data.price) {
+              const currentPrice = Number(data.price);
+              const pnl = (ausdAllocated * currentPrice) / entryPrice - ausdAllocated;
+              total += pnl;
+            }
+          }
+        }
+        
+        if (active) {
+          setUnrealizedPnL(+total.toFixed(6));
+        }
+      } catch (err) {
+        console.error('Error calculating client-side unrealized PnL:', err);
+      }
+    }
+
+    fetchPnL();
+    const interval = setInterval(fetchPnL, 15_000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [follower, leaderAddress, openPositionIds, publicClient]);
+
   const freeBalance    = rawFreeBalance  !== undefined ? Number(rawFreeBalance as bigint) / 10 ** DECIMALS : null;
   const lockedBalance  = vault ? Number(vault.ausdLocked) / 10 ** DECIMALS : null;
 

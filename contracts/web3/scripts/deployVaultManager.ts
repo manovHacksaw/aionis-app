@@ -42,8 +42,11 @@ async function main() {
   console.log('  Minter confirmed:', await ausd.minters(vmAddress));
 
   // ── Set API URLs via setApiBase ───────────────────────────────────────────
-  const apiBase       = 'http://localhost:3001/api/agent/leader/';
-  const priceApiBase  = 'http://localhost:3001/api/price/';
+  // The Agent Platform calls back over the public internet, so this must be
+  // the ngrok tunnel URL (or other public origin), not localhost.
+  const origin        = process.env.NGROK_URL ?? 'http://localhost:3001';
+  const apiBase       = `${origin}/api/agent/leader/`;
+  const priceApiBase  = `${origin}/api/price/`;
   console.log('\nSetting API URLs...');
   const tx2 = await vm.setApiBase(apiBase);
   await tx2.wait();

@@ -1,23 +1,184 @@
 @import "tailwindcss";
 
-:root {
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root,
+.dark {
   --background: #0d0d0d;
+  --card: #141414;
+  --surface: #18181b;
+  --border: #27272a;
   --foreground: #f5f5f5;
+  --muted: #a1a1aa;
+  --subtle: #71717a;
+}
+
+.light {
+  --background: #faf9f6;
+  --card: #ffffff;
+  --surface: #f2f0ec;
+  --border: #e8e5df;
+  --foreground: #18181b;
+  --muted: #6b6b70;
+  --subtle: #9a9a9f;
+}
+
+:root {
+  --accent: #e8b848;
+  --accent-hover: #edc564;
+  --accent-active: #d1a23a;
+  --accent-foreground: #18181b;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-card: var(--card);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-active: var(--accent-active);
+  --color-accent-foreground: var(--accent-foreground);
+  --font-sans: var(--font-jakarta);
   --font-mono: var(--font-geist-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, sans-serif;
+  font-family: var(--font-jakarta), Arial, sans-serif;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 * {
   box-sizing: border-box;
 }
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.18s ease-out;
+}
+
+/* ── 90fps GPU Animations & Transitions ──────────────────────────────────────── */
+
+:root {
+  --spring-easing: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --fluid-easing: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Spring-based transition properties */
+.transition-spring {
+  transition: all 0.4s var(--spring-easing);
+  will-change: transform, opacity;
+}
+
+.transition-fluid {
+  transition: all 0.35s var(--fluid-easing);
+  will-change: transform, opacity;
+}
+
+/* GPU Scale & Translate transitions */
+.hover-scale-spring:hover {
+  transform: scale3d(1.02, 1.02, 1);
+}
+
+.active-scale-spring:active {
+  transform: scale3d(0.96, 0.96, 1);
+}
+
+/* Cascading up-fade animation */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.45s var(--fluid-easing) both;
+}
+
+/* Scale & fade entry animation */
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale3d(0.95, 0.95, 1);
+  }
+  to {
+    opacity: 1;
+    transform: scale3d(1, 1, 1);
+  }
+}
+
+.animate-scale-in {
+  animation: scale-in 0.4s var(--spring-easing) both;
+}
+
+/* Staggered animation delays using custom variables */
+.stagger-1 { animation-delay: 40ms; }
+.stagger-2 { animation-delay: 80ms; }
+.stagger-3 { animation-delay: 120ms; }
+.stagger-4 { animation-delay: 160ms; }
+.stagger-5 { animation-delay: 200ms; }
+.stagger-6 { animation-delay: 240ms; }
+
+/* GPU-accelerated Shimmer loading effect */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--surface) 25%,
+    var(--border) 50%,
+    var(--surface) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s infinite linear;
+}
+
+/* SVG stroke drawing animation */
+@keyframes draw-path {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-draw-path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw-path 1.2s var(--fluid-easing) forwards;
+}
+
+/* Subtle icon shaking */
+@keyframes bell-shake {
+  0%, 100% { transform: rotate(0deg); }
+  20%, 60% { transform: rotate(10deg); }
+  40%, 80% { transform: rotate(-10deg); }
+}
+
+.group:hover .animate-bell {
+  animation: bell-shake 0.5s ease;
+  transform-origin: top center;
+}
+
