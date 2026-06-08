@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAccount } from 'wagmi';
+import { usePrivy } from '@privy-io/react-auth';
 import ConnectButton from '@/components/ConnectButton';
 import Avatar from '@/components/Avatar';
 import { useVault } from '@/hooks/useVault';
@@ -30,7 +30,9 @@ const RiskDots = ({ level }: { level: number }) => (
 
 export default function AgentsPage() {
   const router = useRouter();
-  const { address, isConnected } = useAccount();
+  const { authenticated, user } = usePrivy();
+  const isConnected = authenticated && !!user?.wallet?.address;
+  const address = user?.wallet?.address;
   const [agents,  setAgents]  = useState<Agent[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(false);

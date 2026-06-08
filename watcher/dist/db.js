@@ -51,6 +51,24 @@ export function createPrismaDb() {
             });
             return rows.map((r) => r.follower);
         },
+        async getAllOnChainLeaders() {
+            const rows = await prisma.userVault.findMany({
+                where: { status: 'ACTIVE' },
+                select: { leader: true },
+                distinct: ['leader'],
+            });
+            return rows.map((r) => r.leader);
+        },
+        async getOnChainFollowers(leader) {
+            const rows = await prisma.userVault.findMany({
+                where: { leader: leader.toLowerCase(), status: 'ACTIVE' },
+                select: { follower: true, allowlistJson: true },
+            });
+            return rows.map((r) => ({
+                follower: r.follower,
+                allowlist: r.allowlistJson.map((a) => a.toLowerCase()),
+            }));
+        },
         async recordLeaderSwap(swap) {
             await prisma.leaderSwap.create({
                 data: {
@@ -141,6 +159,13 @@ export function createPrismaDb() {
                 where: { status: 'OPEN' },
             });
             return rows.map(toTrade);
+        },
+        async upsertTokenPrice(token, price) {
+            await prisma.tokenPrice.upsert({
+                where: { token: token.toUpperCase() },
+                update: { price },
+                create: { token: token.toUpperCase(), price },
+            });
         },
     };
 }

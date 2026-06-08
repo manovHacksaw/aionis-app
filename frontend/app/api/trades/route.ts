@@ -5,7 +5,10 @@ import { somniaTestnet } from '@/config/chains';
 import { getWsomiPrice } from '@/lib/price';
 
 const VAULT_MANAGER = (process.env.NEXT_PUBLIC_VAULT_MANAGER_ADDRESS ?? '') as `0x${string}`;
-const DEPLOY_BLOCK = 402_762_856n;
+
+// Block the current VaultManager (v6) was deployed at — pipeline events
+// can't exist before this, so there's no need to scan further back.
+const DEPLOY_BLOCK = 403_597_497n;
 
 const EVENTS = [
   parseAbiItem('event WatcherRequested(uint256 indexed requestId, bytes32 indexed vaultId)'),

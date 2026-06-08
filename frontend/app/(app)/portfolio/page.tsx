@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAccount } from 'wagmi';
+import { usePrivy } from '@privy-io/react-auth';
 import ConnectButton from '@/components/ConnectButton';
 import Avatar from '@/components/Avatar';
 
@@ -111,7 +111,9 @@ function aggregateHoldings(agents: Agent[]): Holding[] {
 
 export default function PortfolioPage() {
   const router = useRouter();
-  const { address, isConnected } = useAccount();
+  const { authenticated, user } = usePrivy();
+  const isConnected = authenticated && !!user?.wallet?.address;
+  const address = user?.wallet?.address;
   const [agents,  setAgents]  = useState<Agent[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(false);

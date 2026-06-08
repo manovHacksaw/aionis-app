@@ -196,7 +196,18 @@ function PortfolioChart({ points }: { points: [number, number][] }) {
   const xs = points.map(p => p[0]);
   const ys = points.map(p => p[1]);
   const minX = Math.min(...xs), maxX = Math.max(...xs);
-  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  
+  let minY = Math.min(...ys);
+  let maxY = Math.max(...ys);
+  
+  // Pad Y-axis range if values are very close or identical (avoiding division by zero/extreme scaling)
+  const avg = (minY + maxY) / 2;
+  const diff = maxY - minY;
+  const minDiff = Math.max(avg * 0.02, 10); // at least 2% of average or 10 units
+  if (diff < minDiff) {
+    minY = avg - minDiff / 2;
+    maxY = avg + minDiff / 2;
+  }
   
   const px = (x: number) => ((x - minX) / (maxX - minX || 1)) * (w - 12) + 6;
   const py = (y: number) => h - 6 - ((y - minY) / (maxY - minY || 1)) * (h - 16);
@@ -298,39 +309,52 @@ export default function Home() {
       .filter((t) => t.status === 'CLOSED' && t.closedAt)
       .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
 
+    const displayValue = portfolioValue > 0 ? portfolioValue : (balance ? Number(balance) : 10000);
     const totalRealizedPnl = closedTrades.reduce((sum, t) => sum + (t.pnl ?? 0), 0);
-    const baseline = portfolioValue - totalRealizedPnl - portfolioPnl;
+    const baseline = displayValue - totalRealizedPnl - portfolioPnl;
 
-    const points: number[] = [];
-
-    if (closedTrades.length === 0) {
-      // If no closed trades, generate a beautiful organic simulated chart leading to the current value
-      const steps = 10;
-      const baseVal = baseline > 0 ? baseline : 10000;
-      const finalVal = portfolioValue > 0 ? portfolioValue : 10000;
-      const diff = finalVal - baseVal;
-      
-      for (let i = 0; i < steps; i++) {
-        // Add an organic curve with noise
-        const pct = i / (steps - 1);
-        const noise = Math.sin(i * 1.7) * (baseVal * 0.001); // 0.1% noise
-        points.push(baseVal + diff * pct + noise);
-      }
-    } else {
-      // Start with the baseline
-      points.push(baseline);
-      let tempVal = baseline;
-      for (const t of closedTrades) {
-        tempVal += t.pnl ?? 0;
-        points.push(tempVal);
-      }
-      // Add current live value
-      points.push(portfolioValue);
+    const now = Date.now();
+    let startTime = now - 24 * 60 * 60 * 1000; // default 24h ago
+    
+    const allValidTrades = allTrades.filter(t => t.openedAt);
+    if (allValidTrades.length > 0) {
+      const firstTradeTime = Math.min(...allValidTrades.map(t => new Date(t.openedAt!).getTime()));
+      // Start 24 hours before first trade to display the baseline clearly, or at least 24 hours ago
+      startTime = Math.min(firstTradeTime - 24 * 60 * 60 * 1000, now - 24 * 60 * 60 * 1000);
     }
 
-    // Map to [x, y] coordinates for PortfolioChart
-    return points.map((val, idx) => [idx, val] as [number, number]);
-  }, [allTrades, portfolioValue, portfolioPnl]);
+    const steps = 30;
+    const points: [number, number][] = [];
+    
+    for (let i = 0; i < steps; i++) {
+      const t = startTime + (i / (steps - 1)) * (now - startTime);
+      
+      // Calculate contribution of each trade at timestamp t
+      let pnlAtT = 0;
+      for (const trade of allTrades) {
+        if (!trade.openedAt) continue;
+        const openTime = new Date(trade.openedAt).getTime();
+        const closeTime = trade.closedAt ? new Date(trade.closedAt).getTime() : now;
+        const finalPnl = trade.pnl ?? 0;
+        
+        if (t >= openTime) {
+          if (t >= closeTime) {
+            pnlAtT += finalPnl;
+          } else {
+            // Linear interpolation of PnL during active trade duration
+            const duration = closeTime - openTime;
+            const elapsed = t - openTime;
+            const pct = duration > 0 ? elapsed / duration : 1;
+            pnlAtT += finalPnl * pct;
+          }
+        }
+      }
+      
+      points.push([t, baseline + pnlAtT]);
+    }
+
+    return points;
+  }, [allTrades, portfolioValue, portfolioPnl, balance]);
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col select-none">

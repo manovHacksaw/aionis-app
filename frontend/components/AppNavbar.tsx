@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation';
 import ConnectButton from './ConnectButton';
 import ThemeToggle from './ThemeToggle';
 import ProfileMenu from './ProfileMenu';
+import NotificationBell from './NotificationBell';
 
 // ── SVG Icons ────────────────────────────────────────────────────────────────
 
@@ -67,15 +68,6 @@ function DropIcon({ className }: { className?: string }) {
   return (
     <svg className={className} width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 22a7 7 0 0 0 7-7c0-4.3-7-11-7-11S5 10.7 5 15a7 7 0 0 0 7 7z" />
-    </svg>
-  );
-}
-
-function BellIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
     </svg>
   );
 }
@@ -183,16 +175,7 @@ export default function AppNavbar() {
 
         {/* Right Area: Control Panel (Notifications, Theme, Profile) */}
         <div className="flex items-center gap-6">
-          {/* Notifications Button */}
-          <button
-            type="button"
-            className="group w-11 h-11 rounded-full bg-surface/60 backdrop-blur-md border border-border/40 flex items-center justify-center text-muted hover:text-foreground hover:border-accent/40 transition-spring cursor-pointer hover:scale-105 active:scale-95 relative"
-            aria-label="Notifications"
-            title="Notifications"
-          >
-            <BellIcon className="animate-bell" />
-            <span className="absolute top-3 right-3 w-[7px] h-[7px] bg-accent rounded-full animate-pulse" />
-          </button>
+          <NotificationBell />
 
           <ThemeToggle />
           <ConnectButton />

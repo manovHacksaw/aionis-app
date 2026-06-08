@@ -29,29 +29,22 @@
 
 ## Infrastructure
 
-- **ngrok**: `https://garnish-hardcopy-annotate.ngrok-free.dev` → `http://localhost:3001`
-- **API_BASE on contract**: `https://garnish-hardcopy-annotate.ngrok-free.dev/api/agent/leader/`
-- **PRICE_API_BASE on contract**: `https://garnish-hardcopy-annotate.ngrok-free.dev/api/price/`
-- **Frontend (UI)**: `localhost:3000` — runs from `frontend/` directory (Privy is configured
-  for this origin only — its CSP is `frame-ancestors 'self' http://localhost:3000 ...`,
-  so auth 403s with "Origin not allowed" if frontend lands on any other port)
-- **Root app (API routes)**: `localhost:3001` — runs from project root `src/`. Frontend's
-  `next.config.ts` has a hardcoded rewrite `'/api/:path*' → 'http://localhost:3001/api/:path*'`
-  that proxies all `/api/*` calls there.
+- **Consolidated**: everything now runs from a single app in `frontend/` on `localhost:3000`
+  — UI, API routes (`/api/agent/leader/...`, `/api/price/...`, `/api/vaults/...`, etc.),
+  and Privy auth all live there. The old split (UI on :3000 / separate root API app on
+  :3001 with a `next.config.ts` rewrite proxying `/api/*`) has been removed; root
+  `package.json`'s `dev` script now just runs `npm run dev --prefix frontend`, and
+  `src/` only holds compiled contract artifacts.
+- **ngrok**: point at `localhost:3000` — `ngrok http 3000` — since that's where the
+  contract-callback routes (`/api/agent/leader/`, `/api/price/`) are served.
+- **API_BASE / PRICE_API_BASE on contract**: `<ngrok-url>/api/agent/leader/` and
+  `<ngrok-url>/api/price/` respectively (set via `setApiBase.ts`).
 - **Watcher**: `watcher/src/index.ts`
 
-> **Critical #1**: Next.js 16 in `frontend/` detects monorepo root at `/somnia/` and reads
+> **Critical**: Next.js 16 in `frontend/` detects monorepo root at `/somnia/` and reads
 > env from **root `.env.local`**, NOT `frontend/.env.local`. Always update the root file.
->
-> **Critical #2 — START FRONTEND FIRST**: port assignment is a race for `:3000`. Frontend
-> MUST win it (Privy + the `next.config.ts` rewrite both hardcode this convention). Always:
-> 1. `cd frontend && npm run dev` (claims `:3000`)
-> 2. *then* `cd <root> && npm run dev` (falls back to `:3001`)
-> 3. point ngrok at `:3001`
-> If you ever see Privy throw "Origin not allowed" / 403, or `/api/traders/...` 500 in a
-> loop, the ports are flipped — kill both and restart in the order above. Sanity check:
-> `curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/api/agent/leader/<addr>/latest-swap`
-> should return `200` directly from the root app (not proxied).
+> Sanity check the API is reachable directly (no proxy involved anymore):
+> `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/agent/leader/<addr>/latest-swap`
 
 ---
 

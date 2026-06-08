@@ -1,9 +1,42 @@
 import { prisma } from './prisma';
 
+export type VaultLimits = {
+  slippageBps:       number;
+  minLeaderTradeUsd: number;
+  maxLeaderTradeUsd: number;
+  minAllocUsd:       number;
+  maxAllocUsd:       number;
+};
+
+const DEFAULT_LIMITS: VaultLimits = {
+  slippageBps: 100, minLeaderTradeUsd: 0, maxLeaderTradeUsd: 0, minAllocUsd: 0, maxAllocUsd: 0,
+};
+
+// Renders only the bounds the follower actually configured — omitting "no limit"
+// fields keeps the LLM prompt natural instead of cluttered with zeros.
+function describeLimits(limits: VaultLimits): string {
+  const parts: string[] = [`Slippage Tolerance ${(limits.slippageBps / 100).toFixed(2)}%`];
+
+  if (limits.minLeaderTradeUsd > 0 || limits.maxLeaderTradeUsd > 0) {
+    const lo = limits.minLeaderTradeUsd > 0 ? `$${limits.minLeaderTradeUsd.toFixed(2)}` : 'no min';
+    const hi = limits.maxLeaderTradeUsd > 0 ? `$${limits.maxLeaderTradeUsd.toFixed(2)}` : 'no max';
+    parts.push(`Leader Trade Size Range ${lo}–${hi}`);
+  }
+
+  if (limits.minAllocUsd > 0 || limits.maxAllocUsd > 0) {
+    const lo = limits.minAllocUsd > 0 ? `$${limits.minAllocUsd.toFixed(2)}` : 'no min';
+    const hi = limits.maxAllocUsd > 0 ? `$${limits.maxAllocUsd.toFixed(2)}` : 'no max';
+    parts.push(`Allocation Range ${lo}–${hi} aUSD`);
+  }
+
+  return parts.join(', ');
+}
+
 export async function explainTrade(
   attempt: any,
   riskLevel: number,
-  maxPerTradePct: number
+  maxPerTradePct: number,
+  limits: VaultLimits = DEFAULT_LIMITS
 ): Promise<string> {
   const requestId = attempt.requestId;
 
@@ -24,7 +57,7 @@ export async function explainTrade(
   const openaiKey = process.env.OPENAI_API_KEY;
 
   if (!geminiKey && !openaiKey) {
-    const fallback = getDefaultExplanation(attempt, riskLevel);
+    const fallback = getDefaultExplanation(attempt, riskLevel, limits);
     await saveCache(requestId, fallback);
     return fallback;
   }
@@ -38,13 +71,14 @@ Explain in exactly one plain-English sentence why a trade was copied or skipped 
 - Allocated Capital: ${attempt.ausdAllocated !== null ? `${attempt.ausdAllocated.toFixed(2)} aUSD` : 'none'}
 - Entry Price: ${attempt.entryPrice !== null ? `$${attempt.entryPrice.toFixed(4)}` : 'none'}
 - Resolution/Skip Reason: ${attempt.reason ?? 'none'}
-- Follower Settings: Risk Level ${riskLevel}/5, Max Allocation ${maxPerTradePct}% per trade
+- Follower Settings: Risk Level ${riskLevel}/5, Max Allocation ${maxPerTradePct}% per trade, ${describeLimits(limits)}
 
 Examples of tone and copy style:
 - "The agent copy-traded $45.00 aUSD of WSOMI (score 85/100) — the leader committed 25% of their portfolio to this entry, aligning with your moderate risk settings."
 - "Skipped: slippage limit exceeded — price moved 2.4% past your 1% threshold."
 - "Skipped: token not in allowlist — the leader bought NIA, which is currently deselected in your agent's settings."
 - "Skipped: insufficient balance — the calculated minimum allocation was $15.00, but your agent only has $4.20 in free capital."
+- "Skipped: the leader's $3.20 trade fell below your $5.00 minimum trade size — too small to be worth copying."
 
 Write only the final sentence. Do not include any quotes, formatting, prefix, or explanation.`;
 
@@ -101,7 +135,7 @@ Write only the final sentence. Do not include any quotes, formatting, prefix, or
 
   // Fallback if LLM invocation fails or returns empty
   if (!explanation) {
-    explanation = getDefaultExplanation(attempt, riskLevel);
+    explanation = getDefaultExplanation(attempt, riskLevel, limits);
   }
 
   // Clean raw quote wrappers if any
@@ -125,20 +159,46 @@ async function saveCache(requestId: string, explanation: string): Promise<void> 
   }
 }
 
-function getDefaultExplanation(attempt: any, riskLevel: number): string {
+// Personalizes the categorical TradeSkipped reason strings with the follower's
+// actual configured threshold values, so the fallback reads like a real
+// explanation even without an LLM key configured.
+function describeSkipReason(reason: string, attempt: any, limits: VaultLimits): string {
+  const tradeValue = attempt.usdValue !== null ? `$${attempt.usdValue.toFixed(2)}` : "the leader's trade";
+
+  switch (reason) {
+    case 'slippage exceeded':
+      return `the price drifted beyond your ${(limits.slippageBps / 100).toFixed(2)}% slippage tolerance`;
+    case 'leader trade below minimum':
+      return limits.minLeaderTradeUsd > 0
+        ? `${tradeValue} fell below your $${limits.minLeaderTradeUsd.toFixed(2)} minimum leader trade size`
+        : `the leader's trade was too small to copy`;
+    case 'leader trade above maximum':
+      return limits.maxLeaderTradeUsd > 0
+        ? `${tradeValue} exceeded your $${limits.maxLeaderTradeUsd.toFixed(2)} maximum leader trade size`
+        : `the leader's trade was too large to copy`;
+    case 'allocation below minimum':
+      return limits.minAllocUsd > 0
+        ? `the calculated allocation fell short of your $${limits.minAllocUsd.toFixed(2)} minimum`
+        : `the calculated allocation was too small to be worth copying`;
+    default:
+      return reason.toLowerCase();
+  }
+}
+
+function getDefaultExplanation(attempt: any, riskLevel: number, limits: VaultLimits): string {
   const token = attempt.token ?? 'token';
   const scoreText = attempt.score !== null ? ` (score ${attempt.score}/100)` : '';
-  
+
   if (attempt.status === 'opened') {
     const allocated = attempt.ausdAllocated !== null ? `$${attempt.ausdAllocated.toFixed(2)} aUSD` : 'funds';
     const price = attempt.entryPrice !== null ? ` at $${attempt.entryPrice.toFixed(4)}` : '';
     return `Copied: the agent allocated ${allocated} of ${token}${price}${scoreText} — aligning with your risk level ${riskLevel} settings.`;
   }
-  
+
   if (attempt.status === 'skipped') {
-    const reasonText = attempt.reason ? `: ${attempt.reason.toLowerCase()}` : '';
+    const reasonText = attempt.reason ? `: ${describeSkipReason(attempt.reason.toLowerCase(), attempt, limits)}` : '';
     return `Skipped${reasonText}${scoreText} — criteria not met.`;
   }
-  
+
   return `Pending evaluation for ${token} trade${scoreText}.`;
 }

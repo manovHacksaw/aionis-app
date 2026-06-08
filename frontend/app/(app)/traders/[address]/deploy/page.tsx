@@ -88,12 +88,33 @@ function CreateAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
   const [submitting, setSubmitting] = useState(false);
   const [submitErr,  setSubmitErr]  = useState<string | null>(null);
 
+  // Advanced Trade Limits — empty USD inputs map to 0 ("no limit") on submit
+  const [showAdvanced,    setShowAdvanced]    = useState(false);
+  const [slippagePct,     setSlippagePct]     = useState('1');
+  const [minLeaderTrade,  setMinLeaderTrade]  = useState('');
+  const [maxLeaderTrade,  setMaxLeaderTrade]  = useState('');
+  const [minAlloc,        setMinAlloc]        = useState('');
+  const [maxAlloc,        setMaxAlloc]        = useState('');
+
   const cooldownH      = Math.floor(cooldownSeconds / 3600);
   const cooldownM      = Math.ceil((cooldownSeconds % 3600) / 60);
   const cooldownLabel  = cooldownH > 0 ? `${cooldownH}h ${cooldownM}m` : `${cooldownM}m`;
   const parsedAmount   = parseFloat(amount) || 0;
   const selectedTokens = Object.entries(selected).filter(([, v]) => v).map(([k]) => k as `0x${string}`);
-  const canSubmit      = parsedAmount > 0 && parsedAmount <= balance && selectedTokens.length > 0 && isConnected;
+
+  const parsedSlippagePct    = parseFloat(slippagePct) || 0;
+  const slippageBps          = Math.round(parsedSlippagePct * 100);
+  const parsedMinLeaderTrade = parseFloat(minLeaderTrade) || 0;
+  const parsedMaxLeaderTrade = parseFloat(maxLeaderTrade) || 0;
+  const parsedMinAlloc       = parseFloat(minAlloc) || 0;
+  const parsedMaxAlloc       = parseFloat(maxAlloc) || 0;
+
+  const slippageValid         = slippageBps >= 10 && slippageBps <= 2000;
+  const leaderTradeRangeValid = !(parsedMinLeaderTrade > 0 && parsedMaxLeaderTrade > 0 && parsedMinLeaderTrade > parsedMaxLeaderTrade);
+  const allocRangeValid       = !(parsedMinAlloc > 0 && parsedMaxAlloc > 0 && parsedMinAlloc > parsedMaxAlloc);
+  const limitsValid           = slippageValid && leaderTradeRangeValid && allocRangeValid;
+
+  const canSubmit = parsedAmount > 0 && parsedAmount <= balance && selectedTokens.length > 0 && isConnected && limitsValid;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -101,7 +122,19 @@ function CreateAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
     setSubmitting(true);
     setSubmitErr(null);
     try {
-      await createAgent({ amountHuman: parsedAmount, riskLevel, maxPerTradePct: RISK_MAX_PCT[riskLevel], tokens: selectedTokens });
+      await createAgent({
+        amountHuman:    parsedAmount,
+        riskLevel,
+        maxPerTradePct: RISK_MAX_PCT[riskLevel],
+        tokens:         selectedTokens,
+        limits: {
+          slippageBps,
+          minLeaderTradeUsd: parsedMinLeaderTrade,
+          maxLeaderTradeUsd: parsedMaxLeaderTrade,
+          minAllocUsd:       parsedMinAlloc,
+          maxAllocUsd:       parsedMaxAlloc,
+        },
+      });
       router.push('/portfolio');
     } catch (err: any) {
       setSubmitErr(err?.shortMessage ?? err?.message ?? 'Transaction failed');
@@ -175,6 +208,68 @@ function CreateAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
             ))}
           </div>
           <p className="text-[11px] text-accent/80">{RISK_DESCRIPTIONS[riskLevel]}</p>
+        </div>
+
+        <div className="border border-foreground/10 rounded-xl overflow-hidden">
+          <button type="button" onClick={() => setShowAdvanced((v) => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 text-[12px] text-foreground/60 hover:text-foreground transition-colors cursor-pointer">
+            <span className="flex items-center gap-2">
+              Advanced Trade Limits
+              <span className="text-[10px] text-foreground/30">(optional)</span>
+            </span>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              className={`w-3.5 h-3.5 transition-transform ${showAdvanced ? 'rotate-180' : ''}`}>
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+
+          {showAdvanced && (
+            <div className="px-4 pb-4 space-y-5 border-t border-foreground/[0.06] pt-4">
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <label className="text-[12px] text-foreground/60">Slippage Tolerance</label>
+                  <span className="text-[12px] text-foreground/30 font-mono">{parsedSlippagePct.toFixed(1)}%</span>
+                </div>
+                <input type="range" min="0.1" max="20" step="0.1" value={slippagePct}
+                  onChange={(e) => setSlippagePct(e.target.value)}
+                  className="w-full accent-accent cursor-pointer" />
+                <p className="text-[11px] text-foreground/30">Skip a copy if the price has drifted more than this from the leader&apos;s entry price.</p>
+                {!slippageValid && <p className="text-[11px] text-red-400">Must be between 0.1% and 20%</p>}
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[12px] text-foreground/60 block">Leader Trade Size Filter</label>
+                <p className="text-[11px] text-foreground/30">Ignore the leader&apos;s trades outside this USD range — leave blank for no limit.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <input type="number" min="0" step="any" value={minLeaderTrade}
+                    onChange={(e) => setMinLeaderTrade(e.target.value)}
+                    placeholder="Min $"
+                    className="bg-foreground/[0.03] border border-border rounded-xl px-4 py-2.5 text-[13px] text-foreground focus:outline-none focus:border-foreground/30 transition-all font-mono" />
+                  <input type="number" min="0" step="any" value={maxLeaderTrade}
+                    onChange={(e) => setMaxLeaderTrade(e.target.value)}
+                    placeholder="Max $"
+                    className="bg-foreground/[0.03] border border-border rounded-xl px-4 py-2.5 text-[13px] text-foreground focus:outline-none focus:border-foreground/30 transition-all font-mono" />
+                </div>
+                {!leaderTradeRangeValid && <p className="text-[11px] text-red-400">Min must be less than or equal to max</p>}
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[12px] text-foreground/60 block">Allocation Cap</label>
+                <p className="text-[11px] text-foreground/30">Floor/ceiling on how much aUSD your agent commits per copied trade — leave blank for no limit.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <input type="number" min="0" step="any" value={minAlloc}
+                    onChange={(e) => setMinAlloc(e.target.value)}
+                    placeholder="Min aUSD"
+                    className="bg-foreground/[0.03] border border-border rounded-xl px-4 py-2.5 text-[13px] text-foreground focus:outline-none focus:border-foreground/30 transition-all font-mono" />
+                  <input type="number" min="0" step="any" value={maxAlloc}
+                    onChange={(e) => setMaxAlloc(e.target.value)}
+                    placeholder="Max aUSD"
+                    className="bg-foreground/[0.03] border border-border rounded-xl px-4 py-2.5 text-[13px] text-foreground focus:outline-none focus:border-foreground/30 transition-all font-mono" />
+                </div>
+                {!allocRangeValid && <p className="text-[11px] text-red-400">Min must be less than or equal to max</p>}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="space-y-3 pt-1">

@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAccount } from 'wagmi';
+import { usePrivy } from '@privy-io/react-auth';
 import ConnectButton from '@/components/ConnectButton';
 
+// (Type definition remains unchanged)
 type Trade = {
   id: string;
   leader: string;
@@ -52,7 +53,9 @@ const TokenLogo = ({ symbol }: { symbol: string }) => {
 
 export default function TradesPage() {
   const router = useRouter();
-  const { address, isConnected } = useAccount();
+  const { authenticated, user } = usePrivy();
+  const isConnected = authenticated && !!user?.wallet?.address;
+  const address = user?.wallet?.address;
   const [trades, setTrades] = useState<Trade[]>([]);
   const [filter, setFilter] = useState<'ALL' | 'OPEN' | 'CLOSED' | 'SKIPPED'>('ALL');
   const [loading, setLoading] = useState(false);

@@ -157,16 +157,25 @@ export function useVault(leaderAddress?: `0x${string}`) {
   // ── Write functions ────────────────────────────────────────────────────────
 
   // tokens must be token addresses (0x...) — NOT symbols
+  // limits: human-readable values; USD fields use 0 as "no limit" sentinel
   async function createVault({
     amountHuman,
     riskLevel,
     maxPerTradePct,
     tokens,
+    limits,
   }: {
     amountHuman:    number;
     riskLevel:      number;
     maxPerTradePct: number;
     tokens:         `0x${string}`[];
+    limits: {
+      slippageBps:       number;
+      minLeaderTradeUsd: number;
+      maxLeaderTradeUsd: number;
+      minAllocUsd:       number;
+      maxAllocUsd:       number;
+    };
   }) {
     if (!follower || !leaderAddress) throw new Error('wallet not connected');
 
@@ -176,6 +185,14 @@ export function useVault(leaderAddress?: `0x${string}`) {
       await publicClient!.waitForTransactionReceipt({ hash: approveHash });
       refetchAUSD();
     }
+
+    const onChainLimits = {
+      slippageBps:       limits.slippageBps,
+      minLeaderTradeUsd: parseUnits(limits.minLeaderTradeUsd.toString(), DECIMALS),
+      maxLeaderTradeUsd: parseUnits(limits.maxLeaderTradeUsd.toString(), DECIMALS),
+      minAllocUsd:       parseUnits(limits.minAllocUsd.toString(), DECIMALS),
+      maxAllocUsd:       parseUnits(limits.maxAllocUsd.toString(), DECIMALS),
+    };
 
     // Step 2: create vault on-chain
     const hash = await writeContractAsync({
@@ -188,6 +205,7 @@ export function useVault(leaderAddress?: `0x${string}`) {
         riskLevel,
         maxPerTradePct,
         tokens,
+        onChainLimits,
       ],
     });
     setCreateTxHash(hash);
@@ -221,6 +239,7 @@ export function useVault(leaderAddress?: `0x${string}`) {
         maxPerTradePct,
         allowlist:      tokens,
         onChainVaultId: vaultId,
+        ...limits,
       }),
     }).catch(console.error);
 

@@ -149,6 +149,9 @@ contract VaultManager {
     uint8   public constant MIN_COPY_SCORE  = 10;
     uint256 public constant MIN_TRADE_AUSD  = 1e6;      // 1 aUSD minimum per trade
 
+    uint16  public constant MIN_SLIPPAGE_BPS = 10;      // 0.10%
+    uint16  public constant MAX_SLIPPAGE_BPS = 2000;    // 20.00%
+
     // ── Immutables ────────────────────────────────────────────────────────────
 
     address public immutable AUSD;
@@ -163,6 +166,17 @@ contract VaultManager {
 
     // ── Structs ───────────────────────────────────────────────────────────────
 
+    /// @dev Granular per-vault trade filters layered on top of riskLevel/maxPerTradePct.
+    ///      USD fields share aUSD's 6-decimal precision and use 0 as an explicit
+    ///      "no limit" sentinel so followers aren't forced to set every bound.
+    struct VaultLimits {
+        uint16  slippageBps;        // max allowed price drift between leader entry and ours, in bps (always > 0)
+        uint256 minLeaderTradeUsd;  // ignore leader trades smaller than this (0 = no floor)
+        uint256 maxLeaderTradeUsd;  // ignore leader trades larger than this (0 = no ceiling)
+        uint256 minAllocUsd;        // floor on copy allocation per trade (0 = platform default only)
+        uint256 maxAllocUsd;        // ceiling on copy allocation per trade (0 = no ceiling)
+    }
+
     struct VaultConfig {
         address     follower;
         address     leader;
@@ -172,6 +186,7 @@ contract VaultManager {
         uint8       maxPerTradePct;   // max % of vault per single trade (1-100)
         address[]   allowlist;        // token addresses this vault is allowed to copy
         VaultStatus status;
+        VaultLimits limits;
     }
 
     struct Position {
@@ -352,6 +367,26 @@ contract VaultManager {
     //  VAULT MANAGEMENT
     // ─────────────────────────────────────────────────────────────────────────
 
+    /// @dev Shared validation for VaultLimits — used by createVault and reopenVault.
+    function _validateLimits(VaultLimits calldata limits) internal pure {
+        require(
+            limits.slippageBps >= MIN_SLIPPAGE_BPS && limits.slippageBps <= MAX_SLIPPAGE_BPS,
+            "VM: slippageBps 10-2000"
+        );
+        require(
+            limits.minLeaderTradeUsd == 0 ||
+            limits.maxLeaderTradeUsd == 0 ||
+            limits.minLeaderTradeUsd <= limits.maxLeaderTradeUsd,
+            "VM: leader trade range invalid"
+        );
+        require(
+            limits.minAllocUsd == 0 ||
+            limits.maxAllocUsd == 0 ||
+            limits.minAllocUsd <= limits.maxAllocUsd,
+            "VM: alloc range invalid"
+        );
+    }
+
     /**
      * @notice Create a new vault for a specific leader.
      * @param leader           Wallet to copy-trade.
@@ -360,19 +395,23 @@ contract VaultManager {
      * @param maxPerTradePct   Max % of vault per single trade (1-100).
      * @param allowlist        Token addresses this vault is allowed to copy.
      *                         Must contain at least one token — empty = no trades.
+     * @param limits           Granular trade filters (slippage tolerance is required;
+     *                         leader-trade-size and allocation bounds use 0 = no limit).
      */
     function createVault(
         address            leader,
         uint256            amount,
         uint8              riskLevel,
         uint8              maxPerTradePct,
-        address[] calldata allowlist
+        address[] calldata allowlist,
+        VaultLimits calldata limits
     ) external {
         require(leader != address(0) && leader != msg.sender, "VM: invalid leader");
         require(riskLevel >= 1 && riskLevel <= 10,            "VM: riskLevel 1-10");
         require(maxPerTradePct >= 1 && maxPerTradePct <= 100, "VM: maxPct 1-100");
         require(allowlist.length > 0,                         "VM: allowlist empty, no trades will copy");
         require(amount > 0,                                   "VM: zero deposit");
+        _validateLimits(limits);
 
         bytes32 id = vaultId(msg.sender, leader);
         require(vaults[id].follower == address(0),            "VM: vault already exists");
@@ -390,7 +429,8 @@ contract VaultManager {
             riskLevel:      riskLevel,
             maxPerTradePct: maxPerTradePct,
             allowlist:      allowlist,
-            status:         VaultStatus.ACTIVE
+            status:         VaultStatus.ACTIVE,
+            limits:         limits
         });
 
         followerVaults[msg.sender].push(id);
@@ -456,12 +496,14 @@ contract VaultManager {
         uint256            amount,
         uint8              riskLevel,
         uint8              maxPerTradePct,
-        address[] calldata allowlist
+        address[] calldata allowlist,
+        VaultLimits calldata limits
     ) external {
         require(riskLevel >= 1 && riskLevel <= 10,            "VM: riskLevel 1-10");
         require(maxPerTradePct >= 1 && maxPerTradePct <= 100, "VM: maxPct 1-100");
         require(allowlist.length > 0,                         "VM: allowlist empty, no trades will copy");
         require(amount > 0,                                   "VM: zero deposit");
+        _validateLimits(limits);
 
         bytes32 id = vaultId(msg.sender, leader);
         VaultConfig storage v = vaults[id];
@@ -479,6 +521,7 @@ contract VaultManager {
         v.maxPerTradePct = maxPerTradePct;
         v.allowlist      = allowlist;
         v.status         = VaultStatus.ACTIVE;
+        v.limits         = limits;
 
         emit VaultReopened(msg.sender, leader, id, amount);
     }
@@ -672,6 +715,18 @@ contract VaultManager {
             return;
         }
 
+        // ── Leader trade-size filter (0 = no bound) ──────────────────────────
+        if (v.limits.minLeaderTradeUsd > 0 && usdValue < v.limits.minLeaderTradeUsd) {
+            emit TradeSkipped(id, "leader trade below minimum");
+            pipelineActiveAt[id] = 0;
+            return;
+        }
+        if (v.limits.maxLeaderTradeUsd > 0 && usdValue > v.limits.maxLeaderTradeUsd) {
+            emit TradeSkipped(id, "leader trade above maximum");
+            pipelineActiveAt[id] = 0;
+            return;
+        }
+
         // ── Free balance check ────────────────────────────────────────────────
         uint256 freeBalance = _freeBalance(v);
         if (freeBalance <= MIN_TRADE_AUSD) {
@@ -787,18 +842,34 @@ contract VaultManager {
 
         uint256 ausdAmount = (maxTrade * score) / 100;
 
-        if (ausdAmount < MIN_TRADE_AUSD) {
-            emit TradeSkipped(id, "allocated amount below minimum");
+        // ── Allocation floor: per-vault minAllocUsd layered on the platform floor ──
+        uint256 allocFloor = v.limits.minAllocUsd > MIN_TRADE_AUSD ? v.limits.minAllocUsd : MIN_TRADE_AUSD;
+        if (ausdAmount < allocFloor) {
+            emit TradeSkipped(id, "allocation below minimum");
             return;
         }
         if (ausdAmount > freeBalance) {
             ausdAmount = freeBalance;   // cap to free balance
+        }
+        // ── Allocation ceiling: optional per-vault hard cap (0 = no ceiling) ──────
+        if (v.limits.maxAllocUsd > 0 && ausdAmount > v.limits.maxAllocUsd) {
+            ausdAmount = v.limits.maxAllocUsd;
         }
 
         // Use on-chain latestPrice if available, fall back to trade-time price
         uint256 entryPrice = latestPrice[tokenOut] > 0
             ? latestPrice[tokenOut]
             : tradePrice;
+
+        // ── Slippage guard: drift between leader's execution price and ours ──────
+        if (tradePrice > 0) {
+            uint256 priceDiff = entryPrice > tradePrice ? entryPrice - tradePrice : tradePrice - entryPrice;
+            uint256 slippageBpsActual = (priceDiff * 10000) / tradePrice;
+            if (slippageBpsActual > v.limits.slippageBps) {
+                emit TradeSkipped(id, "slippage exceeded");
+                return;
+            }
+        }
 
         bytes32 posId = keccak256(
             abi.encodePacked(id, block.timestamp, tokenOut, ++_positionNonce)

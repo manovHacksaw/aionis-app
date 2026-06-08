@@ -74,6 +74,14 @@ model UserVault {
   riskLevel      Int        @map("risk_level")
   maxPerTradePct Int        @map("max_per_trade_pct")
   allowlistJson  Json       @default("[]")           @map("allowlist_json")
+
+  // Granular trade filters (VaultManager v6) — USD fields use 0 as "no limit"
+  slippageBps       Int     @default(100)            @map("slippage_bps")
+  minLeaderTradeUsd Decimal @default(0)              @map("min_leader_trade_usd") @db.Decimal(20, 6)
+  maxLeaderTradeUsd Decimal @default(0)              @map("max_leader_trade_usd") @db.Decimal(20, 6)
+  minAllocUsd       Decimal @default(0)              @map("min_alloc_usd")        @db.Decimal(20, 6)
+  maxAllocUsd       Decimal @default(0)              @map("max_alloc_usd")        @db.Decimal(20, 6)
+
   status         String     @default("ACTIVE")
   onChainVaultId String?    @map("on_chain_vault_id")
   createdAt      DateTime   @default(now())          @map("created_at")
@@ -123,6 +131,22 @@ model TradeExplanation {
   createdAt   DateTime @default(now()) @map("created_at")
 
   @@map("trade_explanations")
+}
+
+model Notification {
+  id        String    @id @default(uuid())
+  recipient String    @map("recipient")
+  type      String
+  actor     String?   @map("actor")
+  message   String
+  metadata  Json      @default("{}")
+  dedupeKey String?   @unique @map("dedupe_key")
+  read      Boolean   @default(false)
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([recipient, read])
+  @@index([recipient, createdAt(sort: Desc)])
+  @@map("notifications")
 }
 
 model FollowerProfile {

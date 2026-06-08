@@ -1,8 +1,9 @@
 import { NextResponse }    from 'next/server';
 import { createPublicClient, http, keccak256, encodePacked, parseAbiItem } from 'viem';
 import { somniaTestnet }   from '@/config/chains';
-import { prisma }          from '@/lib/prisma';
-import { explainTrade }    from '@/lib/explainTrade';
+import { prisma }            from '@/lib/prisma';
+import { explainTrade }      from '@/lib/explainTrade';
+import { createNotification } from '@/lib/notifications';
 
 // GET /api/vaults/[address]/activity?leader=0x...
 //
@@ -16,7 +17,7 @@ const VAULT_MANAGER = (process.env.NEXT_PUBLIC_VAULT_MANAGER_ADDRESS ?? '') as `
 
 // Block the current VaultManager (v6) was deployed at — pipeline events
 // can't exist before this, so there's no need to scan further back.
-const DEPLOY_BLOCK = 402_762_856n;
+const DEPLOY_BLOCK = 403_597_497n;
 
 const ADDRESS_TO_SYMBOL: Record<string, string> = {
   '0x046ede9564a72571df6f5e44d0405360c0f4dcab': 'WSOMI',
@@ -155,9 +156,37 @@ export async function GET(
     }
   }
 
+  // Notify the follower the first time we see each opened position. The
+  // activity feed has no DB mirror (reconstructed from logs on every view),
+  // so dedupe on requestId — re-detecting the same PositionOpened on a later
+  // poll upserts onto the existing notification instead of duplicating it.
+  await Promise.all(
+    attempts
+      .filter((a) => a.status === 'opened')
+      .map((a) =>
+        createNotification({
+          recipient: follower,
+          type:      'TRADE_OPENED',
+          actor:     leader,
+          message:   a.token
+            ? `Your agent opened a ${a.token} position copying ${leader.slice(0, 6)}…${leader.slice(-4)}`
+            : `Your agent opened a new position copying ${leader.slice(0, 6)}…${leader.slice(-4)}`,
+          metadata:  { token: a.token, ausdAllocated: a.ausdAllocated, entryPrice: a.entryPrice, txHash: a.txHash },
+          dedupeKey: `trade-opened:${a.requestId}`,
+        }).catch((err) => console.error('[activity API] Failed to create trade notification:', err))
+      )
+  );
+
   // Fetch follower configuration settings
   let riskLevel = 3;
   let maxPerTradePct = 20;
+  let limits = {
+    slippageBps:       100,
+    minLeaderTradeUsd: 0,
+    maxLeaderTradeUsd: 0,
+    minAllocUsd:       0,
+    maxAllocUsd:       0,
+  };
   try {
     const vault = await prisma.userVault.findUnique({
       where: {
@@ -170,6 +199,13 @@ export async function GET(
     if (vault) {
       riskLevel = vault.riskLevel;
       maxPerTradePct = vault.maxPerTradePct;
+      limits = {
+        slippageBps:       vault.slippageBps,
+        minLeaderTradeUsd: Number(vault.minLeaderTradeUsd),
+        maxLeaderTradeUsd: Number(vault.maxLeaderTradeUsd),
+        minAllocUsd:       Number(vault.minAllocUsd),
+        maxAllocUsd:       Number(vault.maxAllocUsd),
+      };
     }
   } catch (err) {
     console.error('[activity API] Failed to fetch UserVault details:', err);
@@ -180,7 +216,7 @@ export async function GET(
     attempts.reverse().map(async (a) => {
       let explanation: string | null = null;
       if (a.status === 'opened' || a.status === 'skipped') {
-        explanation = await explainTrade(a, riskLevel, maxPerTradePct);
+        explanation = await explainTrade(a, riskLevel, maxPerTradePct, limits);
       }
       return { ...a, explanation };
     })

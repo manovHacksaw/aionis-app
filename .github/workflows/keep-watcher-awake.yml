@@ -1,0 +1,18 @@
+name: Keep watcher awake
+
+on:
+  schedule:
+    - cron: '*/14 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping watcher health endpoint
+        run: |
+          if [ -z "${{ vars.WATCHER_HEALTH_URL }}" ]; then
+            echo "WATCHER_HEALTH_URL repo variable is not set — skipping ping."
+            exit 0
+          fi
+          curl -fsS "${{ vars.WATCHER_HEALTH_URL }}" -o /dev/null -w "ping → HTTP %{http_code}\n"

@@ -98,6 +98,28 @@ export type AgentRequestInfoStructOutput = [
 };
 
 export declare namespace VaultManager {
+  export type VaultLimitsStruct = {
+    slippageBps: BigNumberish;
+    minLeaderTradeUsd: BigNumberish;
+    maxLeaderTradeUsd: BigNumberish;
+    minAllocUsd: BigNumberish;
+    maxAllocUsd: BigNumberish;
+  };
+
+  export type VaultLimitsStructOutput = [
+    slippageBps: bigint,
+    minLeaderTradeUsd: bigint,
+    maxLeaderTradeUsd: bigint,
+    minAllocUsd: bigint,
+    maxAllocUsd: bigint
+  ] & {
+    slippageBps: bigint;
+    minLeaderTradeUsd: bigint;
+    maxLeaderTradeUsd: bigint;
+    minAllocUsd: bigint;
+    maxAllocUsd: bigint;
+  };
+
   export type VaultConfigStruct = {
     follower: AddressLike;
     leader: AddressLike;
@@ -107,6 +129,7 @@ export declare namespace VaultManager {
     maxPerTradePct: BigNumberish;
     allowlist: AddressLike[];
     status: BigNumberish;
+    limits: VaultManager.VaultLimitsStruct;
   };
 
   export type VaultConfigStructOutput = [
@@ -117,7 +140,8 @@ export declare namespace VaultManager {
     riskLevel: bigint,
     maxPerTradePct: bigint,
     allowlist: string[],
-    status: bigint
+    status: bigint,
+    limits: VaultManager.VaultLimitsStructOutput
   ] & {
     follower: string;
     leader: string;
@@ -127,6 +151,7 @@ export declare namespace VaultManager {
     maxPerTradePct: bigint;
     allowlist: string[];
     status: bigint;
+    limits: VaultManager.VaultLimitsStructOutput;
   };
 }
 
@@ -138,8 +163,10 @@ export interface VaultManagerInterface extends Interface {
       | "AUSD"
       | "JSON_API_AGENT_ID"
       | "LLM_AGENT_ID"
+      | "MAX_SLIPPAGE_BPS"
       | "MAX_TRADE_AGE"
       | "MIN_COPY_SCORE"
+      | "MIN_SLIPPAGE_BPS"
       | "MIN_TRADE_AUSD"
       | "PIPELINE_TIMEOUT"
       | "PRICE_API_BASE"
@@ -217,11 +244,19 @@ export interface VaultManagerInterface extends Interface {
     values?: undefined
   ): string;
   encodeFunctionData(
+    functionFragment: "MAX_SLIPPAGE_BPS",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
     functionFragment: "MAX_TRADE_AGE",
     values?: undefined
   ): string;
   encodeFunctionData(
     functionFragment: "MIN_COPY_SCORE",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "MIN_SLIPPAGE_BPS",
     values?: undefined
   ): string;
   encodeFunctionData(
@@ -255,7 +290,8 @@ export interface VaultManagerInterface extends Interface {
       BigNumberish,
       BigNumberish,
       BigNumberish,
-      AddressLike[]
+      AddressLike[],
+      VaultManager.VaultLimitsStruct
     ]
   ): string;
   encodeFunctionData(
@@ -349,7 +385,8 @@ export interface VaultManagerInterface extends Interface {
       BigNumberish,
       BigNumberish,
       BigNumberish,
-      AddressLike[]
+      AddressLike[],
+      VaultManager.VaultLimitsStruct
     ]
   ): string;
   encodeFunctionData(
@@ -406,11 +443,19 @@ export interface VaultManagerInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
+    functionFragment: "MAX_SLIPPAGE_BPS",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "MAX_TRADE_AGE",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
     functionFragment: "MIN_COPY_SCORE",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "MIN_SLIPPAGE_BPS",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -917,9 +962,13 @@ export interface VaultManager extends BaseContract {
 
   LLM_AGENT_ID: TypedContractMethod<[], [bigint], "view">;
 
+  MAX_SLIPPAGE_BPS: TypedContractMethod<[], [bigint], "view">;
+
   MAX_TRADE_AGE: TypedContractMethod<[], [bigint], "view">;
 
   MIN_COPY_SCORE: TypedContractMethod<[], [bigint], "view">;
+
+  MIN_SLIPPAGE_BPS: TypedContractMethod<[], [bigint], "view">;
 
   MIN_TRADE_AUSD: TypedContractMethod<[], [bigint], "view">;
 
@@ -951,7 +1000,8 @@ export interface VaultManager extends BaseContract {
       amount: BigNumberish,
       riskLevel: BigNumberish,
       maxPerTradePct: BigNumberish,
-      allowlist: AddressLike[]
+      allowlist: AddressLike[],
+      limits: VaultManager.VaultLimitsStruct
     ],
     [void],
     "nonpayable"
@@ -1092,7 +1142,8 @@ export interface VaultManager extends BaseContract {
       amount: BigNumberish,
       riskLevel: BigNumberish,
       maxPerTradePct: BigNumberish,
-      allowlist: AddressLike[]
+      allowlist: AddressLike[],
+      limits: VaultManager.VaultLimitsStruct
     ],
     [void],
     "nonpayable"
@@ -1131,7 +1182,16 @@ export interface VaultManager extends BaseContract {
   vaults: TypedContractMethod<
     [arg0: BytesLike],
     [
-      [string, string, bigint, bigint, bigint, bigint, bigint] & {
+      [
+        string,
+        string,
+        bigint,
+        bigint,
+        bigint,
+        bigint,
+        bigint,
+        VaultManager.VaultLimitsStructOutput
+      ] & {
         follower: string;
         leader: string;
         ausdLocked: bigint;
@@ -1139,6 +1199,7 @@ export interface VaultManager extends BaseContract {
         riskLevel: bigint;
         maxPerTradePct: bigint;
         status: bigint;
+        limits: VaultManager.VaultLimitsStructOutput;
       }
     ],
     "view"
@@ -1166,10 +1227,16 @@ export interface VaultManager extends BaseContract {
     nameOrSignature: "LLM_AGENT_ID"
   ): TypedContractMethod<[], [bigint], "view">;
   getFunction(
+    nameOrSignature: "MAX_SLIPPAGE_BPS"
+  ): TypedContractMethod<[], [bigint], "view">;
+  getFunction(
     nameOrSignature: "MAX_TRADE_AGE"
   ): TypedContractMethod<[], [bigint], "view">;
   getFunction(
     nameOrSignature: "MIN_COPY_SCORE"
+  ): TypedContractMethod<[], [bigint], "view">;
+  getFunction(
+    nameOrSignature: "MIN_SLIPPAGE_BPS"
   ): TypedContractMethod<[], [bigint], "view">;
   getFunction(
     nameOrSignature: "MIN_TRADE_AUSD"
@@ -1205,7 +1272,8 @@ export interface VaultManager extends BaseContract {
       amount: BigNumberish,
       riskLevel: BigNumberish,
       maxPerTradePct: BigNumberish,
-      allowlist: AddressLike[]
+      allowlist: AddressLike[],
+      limits: VaultManager.VaultLimitsStruct
     ],
     [void],
     "nonpayable"
@@ -1361,7 +1429,8 @@ export interface VaultManager extends BaseContract {
       amount: BigNumberish,
       riskLevel: BigNumberish,
       maxPerTradePct: BigNumberish,
-      allowlist: AddressLike[]
+      allowlist: AddressLike[],
+      limits: VaultManager.VaultLimitsStruct
     ],
     [void],
     "nonpayable"
@@ -1406,7 +1475,16 @@ export interface VaultManager extends BaseContract {
   ): TypedContractMethod<
     [arg0: BytesLike],
     [
-      [string, string, bigint, bigint, bigint, bigint, bigint] & {
+      [
+        string,
+        string,
+        bigint,
+        bigint,
+        bigint,
+        bigint,
+        bigint,
+        VaultManager.VaultLimitsStructOutput
+      ] & {
         follower: string;
         leader: string;
         ausdLocked: bigint;
@@ -1414,6 +1492,7 @@ export interface VaultManager extends BaseContract {
         riskLevel: bigint;
         maxPerTradePct: bigint;
         status: bigint;
+        limits: VaultManager.VaultLimitsStructOutput;
       }
     ],
     "view"

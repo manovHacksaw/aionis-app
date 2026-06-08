@@ -1,6 +1,6 @@
 import { ethers } from 'hardhat';
 
-const VAULT_MANAGER = '0x89B849FA54BC90f93Ae1165f119A86460Bb0e54B';
+const VAULT_MANAGER = '0x3C5e0BC3d2F7338704938CecAb02BBa6BAc6da6B';
 const NGROK_URL     = process.env.NGROK_URL ?? '';
 
 async function main() {
