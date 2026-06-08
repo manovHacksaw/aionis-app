@@ -4,6 +4,7 @@ import { somniaTestnet }   from '@/config/chains';
 import { prisma }            from '@/lib/prisma';
 import { explainTrade }      from '@/lib/explainTrade';
 import { createNotification } from '@/lib/notifications';
+import { sendTradeOpenedEmail } from '@/lib/email';
 
 // GET /api/vaults/[address]/activity?leader=0x...
 //
@@ -163,8 +164,11 @@ export async function GET(
   await Promise.all(
     attempts
       .filter((a) => a.status === 'opened')
-      .map((a) =>
-        createNotification({
+      .map(async (a) => {
+        const dedupeKey = `trade-opened:${a.requestId}`;
+        const seenBefore = await prisma.notification.findUnique({ where: { dedupeKey } });
+
+        await createNotification({
           recipient: follower,
           type:      'TRADE_OPENED',
           actor:     leader,
@@ -172,9 +176,25 @@ export async function GET(
             ? `Your agent opened a ${a.token} position copying ${leader.slice(0, 6)}…${leader.slice(-4)}`
             : `Your agent opened a new position copying ${leader.slice(0, 6)}…${leader.slice(-4)}`,
           metadata:  { token: a.token, ausdAllocated: a.ausdAllocated, entryPrice: a.entryPrice, txHash: a.txHash },
-          dedupeKey: `trade-opened:${a.requestId}`,
-        }).catch((err) => console.error('[activity API] Failed to create trade notification:', err))
-      )
+          dedupeKey,
+        }).catch((err) => console.error('[activity API] Failed to create trade notification:', err));
+
+        // Only email on the first sighting of this position — the activity
+        // feed is reconstructed from logs on every poll, so without this
+        // check we'd re-send the email each time the page is refreshed.
+        if (!seenBefore) {
+          const profile = await prisma.followerProfile.findUnique({ where: { follower } }).catch(() => null);
+          if (profile?.email && profile.notifications) {
+            await sendTradeOpenedEmail(profile.email, {
+              leader,
+              token:         a.token,
+              ausdAllocated: a.ausdAllocated,
+              entryPrice:    a.entryPrice,
+              txHash:        a.txHash,
+            }).catch((err) => console.error('[activity API] Failed to send trade-opened email:', err));
+          }
+        }
+      })
   );
 
   // Fetch follower configuration settings

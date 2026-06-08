@@ -64,6 +64,75 @@ export async function sendWelcomeEmail(
   }
 }
 
+export async function sendTradeOpenedEmail(
+  email: string,
+  details: {
+    leader:        string;
+    token:         string | null;
+    ausdAllocated: number | null;
+    entryPrice:    number | null;
+    txHash:        string | null;
+  }
+): Promise<boolean> {
+  const apiKey = process.env.RESEND_API_KEY;
+
+  if (!apiKey) {
+    console.warn('[email] Resend API key is missing. Skipping trade-opened email.');
+    return false;
+  }
+
+  const from    = 'Aionis Copy Trading <onboarding@resend.dev>';
+  const leader  = `${details.leader.slice(0, 6)}…${details.leader.slice(-4)}`;
+  const token   = details.token ?? 'a new asset';
+  const subject = `Your agent opened a ${token} position`;
+
+  const explorerLink = details.txHash
+    ? `<p style="font-size: 13px;"><a href="https://explorer.somnia.network/tx/${details.txHash}" style="color: #f59e0b;">View transaction on explorer →</a></p>`
+    : '';
+
+  const html = `
+    <div style="font-family: sans-serif; background-color: #0d0d0d; color: #ffffff; padding: 40px 20px; border-radius: 12px; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #f59e0b; font-weight: 300; border-bottom: 1px solid #27272a; padding-bottom: 12px; margin-bottom: 20px;">Position opened</h2>
+      <p style="font-size: 14px; line-height: 1.6; color: #a1a1aa;">
+        Your agent just copied a trade from <strong>${leader}</strong> and opened a new <strong>${token}</strong> position.
+      </p>
+      <div style="margin: 30px 0; background-color: #141414; border: 1px solid #27272a; padding: 15px; border-radius: 8px;">
+        <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: #71717a; display: block; margin-bottom: 4px;">Allocated</span>
+        <code style="font-family: monospace; font-size: 13.5px; color: #f59e0b;">${details.ausdAllocated != null ? `${details.ausdAllocated.toFixed(2)} aUSD` : '—'}</code>
+        <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: #71717a; display: block; margin: 12px 0 4px;">Entry price</span>
+        <code style="font-family: monospace; font-size: 13.5px; color: #f59e0b;">${details.entryPrice != null ? `$${details.entryPrice.toFixed(4)}` : '—'}</code>
+      </div>
+      ${explorerLink}
+      <p style="font-size: 12px; color: #52525b; border-top: 1px solid #27272a; padding-top: 15px; margin-top: 30px;">
+        Aionis is built on Somnia Shannon Testnet. All assets, including aUSD and STT, are simulated. Manage your notification preferences from your profile.
+      </p>
+    </div>
+  `;
+
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({ from, to: [email], subject, html }),
+    });
+
+    if (res.ok) {
+      console.log(`[email] Trade-opened email successfully sent via Resend to: ${email}`);
+      return true;
+    } else {
+      const errorText = await res.text();
+      console.error(`[email] Resend API error (status ${res.status}):`, errorText);
+      return false;
+    }
+  } catch (err) {
+    console.error('[email] Failed to dispatch trade-opened email via Resend:', err);
+    return false;
+  }
+}
+
 export async function sendVerificationCode(
   email: string,
   code: string

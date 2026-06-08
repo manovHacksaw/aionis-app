@@ -247,6 +247,7 @@ export default function Home() {
   const [topTraders, setTopTraders] = useState<Trader[]>([]);
   const [topTradersLoading, setTopTradersLoading] = useState(false);
   const [recentUserTrades, setRecentUserTrades] = useState<Trade[]>([]);
+  const [recentTradesLoading, setRecentTradesLoading] = useState(false);
   const [allTrades, setAllTrades] = useState<Trade[]>([]);
 
   useEffect(() => {
@@ -283,6 +284,7 @@ export default function Home() {
       setAllTrades([]);
       return;
     }
+    setRecentTradesLoading(true);
     fetch(`/api/trades?address=${address}`)
       .then((r) => r.json())
       .then((d) => {
@@ -297,7 +299,8 @@ export default function Home() {
           setAllTrades(d.trades);
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setRecentTradesLoading(false));
   }, [address]);
 
   const portfolioValue = (portfolioSummary?.totalLocked ?? 0) + (portfolioSummary?.totalPnl ?? 0) + (balance ?? 0);
@@ -618,6 +621,12 @@ export default function Home() {
               <div className="py-6 text-center">
                 <p className="text-subtle text-[12px] mb-3">Connect wallet to view transactions.</p>
                 <ConnectButton fullWidth />
+              </div>
+            ) : recentTradesLoading ? (
+              <div className="flex flex-col gap-2.5">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-[52px] bg-surface/50 border border-border/60 rounded-xl animate-shimmer" style={{ animationDelay: `${i * 60}ms` }} />
+                ))}
               </div>
             ) : recentUserTrades.length === 0 ? (
               <div className="py-4 text-center">
