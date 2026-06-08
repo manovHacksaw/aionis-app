@@ -8,7 +8,7 @@ type CreateNotificationInput = {
   type: NotificationType;
   message: string;
   actor?: string | null;
-  metadata?: Record<string, unknown>;
+  metadata?: Prisma.InputJsonValue;
   /** Stable key that prevents the same event from being recorded twice
    *  (e.g. an on-chain requestId/positionId rediscovered on a later poll). */
   dedupeKey?: string;
