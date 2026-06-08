@@ -10,7 +10,7 @@ const stopWatcher = await startWatcher(db);
 const stopPnlUpdater = startPnlUpdater(db);
 // Render web services require an HTTP port to be bound — this also doubles
 // as the endpoint the keep-alive cron pings to stop the free instance idling.
-const PORT = process.env.PORT ?? 3000;
+const PORT = process.env.PORT ?? 8787;
 const server = createServer((req, res) => {
     if (req.url === '/' || req.url === '/health') {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
