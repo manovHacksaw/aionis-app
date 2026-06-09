@@ -5,6 +5,7 @@ import { prisma }            from '@/lib/prisma';
 import { explainTrade }      from '@/lib/explainTrade';
 import { createNotification } from '@/lib/notifications';
 import { sendTradeOpenedEmail } from '@/lib/email';
+import { redis }             from '@/lib/redis';
 
 // GET /api/vaults/[address]/activity?leader=0x...
 //
@@ -75,6 +76,11 @@ export async function GET(
   const follower = address.toLowerCase()     as `0x${string}`;
   const leader   = leaderParam.toLowerCase() as `0x${string}`;
   const vaultId  = vaultIdFor(follower, leader);
+
+  // ── Response cache (30s) — avoids re-scanning logs on every page load ────
+  const cacheKey = `aionis:activity:${follower}:${leader}`;
+  const cached   = await redis.get(cacheKey);
+  if (cached) return NextResponse.json(cached);
 
   const latest = await client.getBlockNumber();
 
@@ -250,5 +256,7 @@ export async function GET(
     })
   );
 
-  return NextResponse.json({ vaultId, attempts: populatedAttempts });
+  const response = { vaultId, attempts: populatedAttempts };
+  await redis.set(cacheKey, response, { ex: 30 });
+  return NextResponse.json(response);
 }
