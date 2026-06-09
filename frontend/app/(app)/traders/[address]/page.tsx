@@ -8,13 +8,27 @@ import { useAccount } from 'wagmi';
 import { useVault } from '@/hooks/useVault';
 import Avatar from '@/components/Avatar';
 
+type RecentTrade = {
+  id:             string;
+  token:          string;
+  ausdcAllocated: number;
+  pnl:            number | null;
+  status:         'OPEN' | 'CLOSED' | 'SKIPPED';
+  txHashOpen:     string | null;
+  openedAt:       string;
+  closedAt:       string | null;
+};
+
 type LeaderStats = {
-  followerCount: number;
-  wsomiPrice:    number;
+  followerCount:     number;
+  wsomiPrice:        number;
   stats24h: { trades: number; volume: number; buys: number; sells: number };
-  lastSeen: string | null;
+  lastSeen:          string | null;
   totalProfitYielded?: number;
-  recentSwaps?: any[];
+  winRate:           number | null;
+  closedPositions:   number;
+  recentSwaps?:      any[];
+  recentTrades?:     RecentTrade[];
 };
 
 const TokenLogo = ({ symbol }: { symbol: string }) => {
@@ -167,6 +181,22 @@ export default function TraderDetailsPage({ params }: PageProps) {
                   )
                 },
                 {
+                  label: 'Win Rate',
+                  value: statsErr ? '—' : stats
+                    ? (stats.winRate !== null ? `${stats.winRate}%` : '—')
+                    : <div className="h-6 w-12 bg-surface/40 rounded animate-shimmer mt-0.5" />,
+                  color: !stats || stats.winRate === null ? 'text-subtle'
+                    : stats.winRate >= 50 ? 'text-emerald-400'
+                    : stats.winRate >= 30 ? 'text-amber-400'
+                    : 'text-red-400',
+                },
+                {
+                  label: 'Closed Positions',
+                  value: statsErr ? '—' : stats ? String(stats.closedPositions) : (
+                    <div className="h-6 w-8 bg-surface/40 rounded animate-shimmer mt-0.5" />
+                  )
+                },
+                {
                   label: 'Total Profits Copy-Traded',
                   value: statsErr ? '—' : stats ? profitFmt : (
                     <div className="h-6 w-24 bg-surface/40 rounded animate-shimmer mt-0.5" />
@@ -280,6 +310,54 @@ export default function TraderDetailsPage({ params }: PageProps) {
               </div>
             )}
           </div>
+
+          {/* Recent Copy Activity */}
+          {stats?.recentTrades && stats.recentTrades.length > 0 && (
+            <div className="bg-card border border-border/80 rounded-2xl p-5 space-y-4">
+              <div className="border-b border-border/60 pb-2.5">
+                <h3 className="text-[13px] font-medium text-muted">Recent Copy Activity</h3>
+                <p className="text-[11px] text-subtle mt-0.5">Positions opened by followers copying this leader.</p>
+              </div>
+              <div className="flex flex-col gap-2">
+                {stats.recentTrades.slice(0, 6).map((t) => {
+                  const isProfit = (t.pnl ?? 0) >= 0;
+                  return (
+                    <div key={t.id} className="px-3 py-2.5 bg-surface/50 border border-border rounded-xl flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${
+                          t.status === 'OPEN'   ? 'bg-emerald-500/10 text-emerald-400' :
+                          t.status === 'CLOSED' ? 'bg-blue-500/10 text-blue-400' :
+                                                  'bg-amber-500/10 text-amber-400'
+                        }`}>{t.status.toLowerCase()}</span>
+                        <span className="text-[12px] text-muted font-semibold">{t.token}</span>
+                        <span className="text-[11px] text-subtle">{t.ausdcAllocated.toFixed(1)} aUSD</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {t.pnl !== null && t.status === 'CLOSED' && (
+                          <span className={`text-[12px] font-semibold tabular-nums ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {isProfit ? '+' : ''}{t.pnl.toFixed(2)}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-subtle">
+                          {new Date(t.openedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                        </span>
+                        {t.txHashOpen && (
+                          <a
+                            href={`https://testnet.somnia.exploreme.pro/tx/${t.txHashOpen}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] text-subtle hover:text-accent-hover"
+                          >
+                            ↗
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
         </div>
 

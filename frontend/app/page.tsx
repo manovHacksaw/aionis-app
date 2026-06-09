@@ -249,11 +249,16 @@ export default function Home() {
   const [recentUserTrades, setRecentUserTrades] = useState<Trade[]>([]);
   const [recentTradesLoading, setRecentTradesLoading] = useState(false);
   const [allTrades, setAllTrades] = useState<Trade[]>([]);
+  const [platformStats, setPlatformStats] = useState<{ activeAgents: number; ausdLocked: number; totalPositions: number; openPositions: number } | null>(null);
 
   useEffect(() => {
     fetch("/api/traders/leaderboard?window=24h")
       .then((r) => r.json())
       .then((d) => { if (d.traders?.length) setTraders(d.traders.slice(0, 4)); })
+      .catch(() => {});
+    fetch("/api/stats")
+      .then((r) => r.json())
+      .then(setPlatformStats)
       .catch(() => {});
   }, []);
 
@@ -395,9 +400,25 @@ export default function Home() {
 
             <div className="grid grid-cols-3 gap-6">
               {[
-                { l: "Total Copy Volume", v: "$65.68M", s: "65.68M USDC" },
-                { l: "Active Agents",     v: "$32.76M", s: "65.68M WSOMI"  },
-                { l: "Avg Copy Rate",     v: "6.19%",   s: "65.68M aUSD"   },
+                {
+                  l: "Active Agents",
+                  v: platformStats ? platformStats.activeAgents.toString() : "…",
+                  s: "copy-trading on Somnia",
+                },
+                {
+                  l: "aUSD Under Mgmt",
+                  v: platformStats
+                    ? platformStats.ausdLocked >= 1000
+                      ? `$${(platformStats.ausdLocked / 1000).toFixed(1)}k`
+                      : `$${platformStats.ausdLocked.toFixed(0)}`
+                    : "…",
+                  s: "locked in agent vaults",
+                },
+                {
+                  l: "Positions Opened",
+                  v: platformStats ? platformStats.totalPositions.toString() : "…",
+                  s: platformStats ? `${platformStats.openPositions} open now` : "loading…",
+                },
               ].map(({ l, v, s }) => (
                 <div key={l}>
                   <div className="flex items-center gap-1 text-[11px] text-subtle mb-1.5"><span>{l}</span><InfoIcon /></div>

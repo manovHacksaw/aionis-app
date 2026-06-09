@@ -10,12 +10,19 @@ import { useVault } from '@/hooks/useVault';
 import Avatar from '@/components/Avatar';
 
 type LeaderStats = {
-  followerCount: number;
-  wsomiPrice:    number;
+  followerCount:     number;
+  wsomiPrice:        number;
   stats24h: { trades: number; volume: number; buys: number; sells: number };
-  lastSeen: string | null;
+  lastSeen:          string | null;
   totalProfitYielded?: number;
-  recentSwaps?: any[];
+  winRate:           number | null;
+  closedPositions:   number;
+  vaultStats?: {
+    closedCount: number;
+    winRate:     number | null;
+    totalPnl:    number;
+    openCount:   number;
+  } | null;
 };
 
 type TradeAttempt = {
@@ -346,17 +353,21 @@ function ManageAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
 export default function ManageAgentPage({ params }: PageProps) {
   const resolvedParams = params instanceof Promise ? use(params) : params;
   const leaderAddress  = resolvedParams.address as `0x${string}`;
+  const { address }    = useAccount();
 
   const [stats,    setStats]    = useState<LeaderStats | null>(null);
   const [statsErr, setStatsErr] = useState(false);
 
   useEffect(() => {
     if (!leaderAddress) return;
-    fetch(`/api/traders/${leaderAddress}`)
+    const url = address
+      ? `/api/traders/${leaderAddress}?follower=${address}`
+      : `/api/traders/${leaderAddress}`;
+    fetch(url)
       .then((r) => r.json())
       .then(setStats)
       .catch(() => setStatsErr(true));
-  }, [leaderAddress]);
+  }, [leaderAddress, address]);
 
   const total24h  = (stats?.stats24h.buys ?? 0) + (stats?.stats24h.sells ?? 0);
   const buyPct    = total24h > 0 ? Math.round((stats!.stats24h.buys / total24h) * 100) : 0;
@@ -431,6 +442,40 @@ export default function ManageAgentPage({ params }: PageProps) {
               ))}
             </div>
           </div>
+
+          {/* Vault-specific performance */}
+          {stats?.vaultStats && (stats.vaultStats.closedCount > 0 || stats.vaultStats.openCount > 0) && (
+            <div className="bg-card border border-border/80 rounded-2xl p-5 hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring">
+              <p className="text-[10px] uppercase tracking-wider text-subtle mb-3">Your Agent vs This Leader</p>
+              <div className="grid grid-cols-3 gap-4">
+                {[
+                  {
+                    label: 'Realized P&L',
+                    value: `${stats.vaultStats.totalPnl >= 0 ? '+' : ''}${stats.vaultStats.totalPnl.toFixed(2)} aUSD`,
+                    color: stats.vaultStats.totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400',
+                  },
+                  {
+                    label: 'Win Rate',
+                    value: stats.vaultStats.winRate !== null ? `${stats.vaultStats.winRate}%` : '—',
+                    color: stats.vaultStats.winRate === null ? 'text-subtle'
+                      : stats.vaultStats.winRate >= 50 ? 'text-emerald-400'
+                      : stats.vaultStats.winRate >= 30 ? 'text-amber-400'
+                      : 'text-red-400',
+                  },
+                  {
+                    label: 'Positions',
+                    value: String(stats.vaultStats.closedCount + stats.vaultStats.openCount),
+                    color: 'text-foreground',
+                  },
+                ].map(({ label, value, color }) => (
+                  <div key={label}>
+                    <p className="text-[10px] uppercase tracking-wider text-foreground/40 mb-1">{label}</p>
+                    <p className={`text-[15px] font-light tabular-nums ${color}`}>{value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right: Manage Agent Settings */}

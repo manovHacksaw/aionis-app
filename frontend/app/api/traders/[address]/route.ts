@@ -8,6 +8,8 @@ export async function GET(
 ) {
   const { address: rawAddress } = await params;
   const address = rawAddress.toLowerCase();
+  const { searchParams } = new URL(_req.url);
+  const followerParam = searchParams.get('follower')?.toLowerCase() ?? null;
 
   const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
@@ -19,7 +21,9 @@ export async function GET(
     swapSides,
     lastSwap,
     pnlSum,
-    recentSwaps
+    closedCount,
+    winnersCount,
+    recentSwaps,
   ] = await Promise.all([
     prisma.position.findMany({
       where:   { leader: address },
@@ -49,16 +53,44 @@ export async function GET(
       where: { leader: address, status: 'CLOSED' },
       _sum: { pnl: true },
     }),
+    prisma.position.count({
+      where: { leader: address, status: 'CLOSED' },
+    }),
+    prisma.position.count({
+      where: { leader: address, status: 'CLOSED', pnl: { gt: 0 } },
+    }),
     prisma.leaderSwap.findMany({
       where: { leader: address },
       orderBy: { timestamp: 'desc' },
       take: 20,
-    })
+    }),
   ]);
+
+  // Vault-specific stats when a follower address is provided (manage page)
+  let vaultStats: {
+    closedCount: number;
+    winRate: number | null;
+    totalPnl: number;
+    openCount: number;
+  } | null = null;
+
+  if (followerParam) {
+    const [vClosed, vWins, vOpen, vPnlAgg] = await Promise.all([
+      prisma.position.count({ where: { leader: address, follower: followerParam, status: 'CLOSED' } }),
+      prisma.position.count({ where: { leader: address, follower: followerParam, status: 'CLOSED', pnl: { gt: 0 } } }),
+      prisma.position.count({ where: { leader: address, follower: followerParam, status: 'OPEN' } }),
+      prisma.position.aggregate({ where: { leader: address, follower: followerParam, status: 'CLOSED' }, _sum: { pnl: true } }),
+    ]);
+    vaultStats = {
+      closedCount: vClosed,
+      winRate: vClosed > 0 ? Math.round((vWins / vClosed) * 100) : null,
+      totalPnl: Number(vPnlAgg._sum.pnl ?? 0),
+      openCount: vOpen,
+    };
+  }
 
   const buys  = swapSides.find((s) => s.side === 'BUY')?._count.id  ?? 0;
   const sells = swapSides.find((s) => s.side === 'SELL')?._count.id ?? 0;
-
   const totalProfitYielded = Number(pnlSum._sum.pnl ?? 0);
 
   return NextResponse.json({
@@ -66,6 +98,9 @@ export async function GET(
     followerCount,
     wsomiPrice,
     totalProfitYielded,
+    closedPositions: closedCount,
+    winRate: closedCount > 0 ? Math.round((winnersCount / closedCount) * 100) : null,
+    vaultStats,
     stats24h: {
       trades: swapAgg._count.id,
       volume: Number(swapAgg._sum.usdValue ?? 0),
@@ -74,18 +109,16 @@ export async function GET(
     },
     lastSeen: lastSwap?.timestamp ?? null,
     recentTrades: copiedPositions.map((t) => ({
-      id:         t.id,
-      follower:   t.follower,
-      token:      t.token,
-      ausdcAllocated:  Number(t.ausdcAllocated),
-      entryPrice: Number(t.entryPrice),
-      exitPrice:  t.exitPrice ? Number(t.exitPrice) : null,
-      pnl:        t.pnl ? Number(t.pnl) : null,
-      status:     t.status,
-      txHashOpen: t.txHashOpen,
-      txHashClose: t.txHashClose,
-      openedAt:   t.openedAt,
-      closedAt:   t.closedAt,
+      id:             t.id,
+      token:          t.token,
+      ausdcAllocated: Number(t.ausdcAllocated),
+      entryPrice:     Number(t.entryPrice),
+      exitPrice:      t.exitPrice ? Number(t.exitPrice) : null,
+      pnl:            t.pnl ? Number(t.pnl) : null,
+      status:         t.status,
+      txHashOpen:     t.txHashOpen,
+      openedAt:       t.openedAt,
+      closedAt:       t.closedAt,
     })),
     recentSwaps: recentSwaps.map((s) => ({
       id:         s.id,

@@ -148,14 +148,14 @@ export default function TradersPage() {
 
       {/* Column headers */}
       {!error && (loading || visible.length > 0 || isValidAddress) && (
-        <div className="grid grid-cols-[2rem_1fr_6rem_6rem_5rem_5rem_6rem] gap-4 px-4 mb-2 text-[11px] uppercase tracking-widest text-subtle">
+        <div className="grid grid-cols-[2rem_1fr_6rem_5rem] md:grid-cols-[2rem_1fr_6rem_6rem_5rem_5rem_6rem] gap-4 px-4 mb-2 text-[11px] uppercase tracking-widest text-subtle">
           <span>#</span>
           <span>Trader</span>
           <span className="text-right">Volume</span>
-          <span className="text-right">Trades</span>
+          <span className="text-right hidden md:block">Trades</span>
           <span className="text-right">Buy %</span>
-          <span className="text-right">Win Rate</span>
-          <span className="text-right">Last Active</span>
+          <span className="text-right hidden md:block">Win Rate</span>
+          <span className="text-right hidden md:block">Last Active</span>
         </div>
       )}
 
@@ -164,32 +164,19 @@ export default function TradersPage() {
           {[...Array(5)].map((_, i) => (
             <div
               key={i}
-              className="grid grid-cols-[2rem_1fr_6rem_6rem_5rem_5rem_6rem] gap-4 items-center px-4 py-3.5 rounded-xl border border-transparent animate-fade-in-up"
+              className="grid grid-cols-[2rem_1fr_6rem_5rem] md:grid-cols-[2rem_1fr_6rem_6rem_5rem_5rem_6rem] gap-4 items-center px-4 py-3.5 rounded-xl border border-transparent animate-fade-in-up"
               style={{ animationDelay: `${i * 50}ms` }}
             >
-              {/* Rank */}
               <div className="h-4 rounded w-4 animate-shimmer" />
-              
-              {/* Avatar + Address */}
               <div className="flex items-center gap-3">
                 <div className="w-7 h-7 rounded-full animate-shimmer" />
                 <div className="h-4 rounded w-24 animate-shimmer" />
               </div>
-              
-              {/* Volume */}
               <div className="h-4 rounded w-16 ml-auto animate-shimmer" />
-              
-              {/* Trades */}
+              <div className="h-4 rounded w-10 ml-auto animate-shimmer hidden md:block" />
               <div className="h-4 rounded w-10 ml-auto animate-shimmer" />
-              
-              {/* Buy % */}
-              <div className="h-4 rounded w-10 ml-auto animate-shimmer" />
-
-              {/* Win Rate */}
-              <div className="h-4 rounded w-10 ml-auto animate-shimmer" />
-
-              {/* Last Seen */}
-              <div className="h-4 rounded w-14 ml-auto animate-shimmer" />
+              <div className="h-4 rounded w-10 ml-auto animate-shimmer hidden md:block" />
+              <div className="h-4 rounded w-14 ml-auto animate-shimmer hidden md:block" />
             </div>
           ))}
         </div>
@@ -210,7 +197,7 @@ export default function TradersPage() {
             <div
               key={queryAddress}
               onClick={() => router.push(`/traders/${queryAddress}`)}
-              className="grid grid-cols-[2rem_1fr_6rem_6rem_5rem_5rem_6rem] gap-4 items-center px-4 py-3.5 rounded-xl border border-dashed border-border bg-surface/10 hover:border-accent/40 hover:bg-surface/20 cursor-pointer transition-spring hover:translate-x-1 animate-fade-in-up"
+              className="grid grid-cols-[2rem_1fr_6rem_5rem] md:grid-cols-[2rem_1fr_6rem_6rem_5rem_5rem_6rem] gap-4 items-center px-4 py-3.5 rounded-xl border border-dashed border-border bg-surface/10 hover:border-accent/40 hover:bg-surface/20 cursor-pointer transition-spring hover:translate-x-1 animate-fade-in-up"
             >
               <span className="text-[12px] text-subtle tabular-nums">—</span>
 
@@ -222,10 +209,10 @@ export default function TradersPage() {
               </div>
 
               <span className="text-right text-[13px] text-subtle tabular-nums">—</span>
+              <span className="text-right text-[13px] text-subtle tabular-nums hidden md:block">—</span>
               <span className="text-right text-[13px] text-subtle tabular-nums">—</span>
-              <span className="text-right text-[13px] text-subtle tabular-nums">—</span>
-              <span className="text-right text-[13px] text-subtle tabular-nums">—</span>
-              <span className="text-right text-[12px] text-subtle tabular-nums">—</span>
+              <span className="text-right text-[13px] text-subtle tabular-nums hidden md:block">—</span>
+              <span className="text-right text-[12px] text-subtle tabular-nums hidden md:block">—</span>
             </div>
           )}
           {visible.map((trader) => {
@@ -239,7 +226,7 @@ export default function TradersPage() {
               <div
                 key={trader.address}
                 onClick={() => router.push(`/traders/${trader.address}`)}
-                className="grid grid-cols-[2rem_1fr_6rem_6rem_5rem_5rem_6rem] gap-4 items-center px-4 py-3.5 rounded-xl border border-transparent hover:border-accent/30 hover:bg-surface/30 cursor-pointer transition-spring hover:translate-x-1 animate-fade-in-up"
+                className="grid grid-cols-[2rem_1fr_6rem_5rem] md:grid-cols-[2rem_1fr_6rem_6rem_5rem_5rem_6rem] gap-4 items-center px-4 py-3.5 rounded-xl border border-transparent hover:border-accent/30 hover:bg-surface/30 cursor-pointer transition-spring hover:translate-x-1 animate-fade-in-up"
                 style={{ animationDelay: `${(trader.rank % 10) * 40}ms` }}
               >
                 <span className="text-[12px] text-subtle tabular-nums">{trader.rank}</span>
@@ -257,13 +244,13 @@ export default function TradersPage() {
                     : trader.volume.toFixed(0)}
                 </span>
 
-                <span className="text-right text-[13px] text-foreground/90 tabular-nums">{trader.trades}</span>
+                <span className="text-right text-[13px] text-foreground/90 tabular-nums hidden md:block">{trader.trades}</span>
 
                 <span className={`text-right text-[13px] tabular-nums ${buyRatio >= 50 ? 'text-emerald-400' : 'text-red-400'}`}>
                   {buyRatio}%
                 </span>
 
-                <div className="text-right">
+                <div className="text-right hidden md:block">
                   {trader.winRate !== null ? (
                     <>
                       <span className={`text-[13px] tabular-nums ${winRateColor}`}>{trader.winRate}%</span>
@@ -274,7 +261,7 @@ export default function TradersPage() {
                   )}
                 </div>
 
-                <span className="text-right text-[12px] text-subtle tabular-nums">
+                <span className="text-right text-[12px] text-subtle tabular-nums hidden md:block">
                   {timeAgo(trader.lastSeen)}
                 </span>
               </div>
