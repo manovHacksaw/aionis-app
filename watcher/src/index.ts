@@ -4,10 +4,52 @@ import { createPrismaDb, disconnectPrisma } from './db.js';
 import { startWatcher }                     from './watcher.js';
 import { startPnlUpdater }                  from './pnl-updater.js';
 import { closeRedis }                       from './dedup.js';
+import { getKeeperInfo }                    from './keeper.js';
+import { log, warn }                        from './logger.js';
+
+// ── Startup diagnostics ───────────────────────────────────────────────────────
+
+log('startup', '=== Aionis Watcher starting on Somnia Mainnet ===');
+
+const REQUIRED_VARS = [
+  'DATABASE_URL',
+  'DIRECT_URL',
+  'VAULT_MANAGER_ADDRESS',
+  'KEEPER_PRIVATE_KEY',
+  'UPSTASH_REDIS_REST_URL',
+  'UPSTASH_REDIS_REST_TOKEN',
+];
+const OPTIONAL_VARS = ['PORT', 'DEFAULT_COPY_PCT'];
+
+for (const key of REQUIRED_VARS) {
+  const val = process.env[key];
+  if (!val) {
+    warn('startup', `${key}: ✗ MISSING — likely to cause a crash`);
+  } else {
+    const masked = key.includes('KEY') || key.includes('TOKEN') || key === 'DATABASE_URL' || key === 'DIRECT_URL'
+      ? `${val.slice(0, 10)}…***`
+      : val;
+    log('startup', `${key}: ✓ ${masked}`);
+  }
+}
+for (const key of OPTIONAL_VARS) {
+  log('startup', `${key}: ${process.env[key] ?? '(default)'}`);
+}
+
+// Print keeper wallet address and live STT balance before starting the event loop
+try {
+  const { address, balanceEth } = await getKeeperInfo();
+  const bal = parseFloat(balanceEth);
+  log('startup', `Keeper wallet: ${address}  balance: ${balanceEth} STT`);
+  if (bal < 1) warn('startup', `Keeper balance is LOW (${balanceEth} STT). Each checkLeaderActivity costs ~0.4 STT. Top up soon.`);
+  if (bal < 0.4) warn('startup', `Keeper balance CRITICAL — below one call's cost. checkLeaderActivity WILL revert.`);
+} catch (e: any) {
+  warn('startup', `Could not fetch keeper balance: ${e.message}`);
+}
 
 const db = createPrismaDb();
 
-console.log('Starting StellaAlpha watcher on Somnia Mainnet…');
+log('startup', 'DB client ready. Starting watcher and P&L updater…');
 
 const stopWatcher    = await startWatcher(db);
 const stopPnlUpdater = startPnlUpdater(db);
