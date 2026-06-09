@@ -43,7 +43,7 @@ export async function GET(req: Request) {
   // Fetch latest swap + buy/sell breakdown per trader
   const leaders = rows.map((r) => r.leader);
 
-  const [latestSwaps, sideCounts] = await Promise.all([
+  const [latestSwaps, sideCounts, closedByLeader, winsByLeader] = await Promise.all([
     // Most recent swap for each leader
     Promise.all(
       leaders.map((leader) =>
@@ -60,6 +60,19 @@ export async function GET(req: Request) {
       where: { leader: { in: leaders }, timestamp: { gte: since } },
       _count: { id: true },
     }),
+    // Closed positions per leader (for win rate)
+    prisma.position.groupBy({
+      by:    ['leader'],
+      where: { leader: { in: leaders }, status: 'CLOSED' },
+      _count: { _all: true },
+      _sum:   { pnl: true },
+    }),
+    // Winning closed positions per leader
+    prisma.position.groupBy({
+      by:    ['leader'],
+      where: { leader: { in: leaders }, status: 'CLOSED', pnl: { gt: 0 } },
+      _count: { _all: true },
+    }),
   ]);
 
   // Build side count map
@@ -69,18 +82,35 @@ export async function GET(req: Request) {
     sideMap[row.leader][row.side as 'BUY' | 'SELL'] = row._count.id;
   }
 
-  const traders = rows.map((row, i) => ({
-    rank:       i + 1,
-    address:    row.leader,
-    trades:     row._count.id,
-    volume:     Number(row._sum.usdValue ?? 0),
-    buys:       sideMap[row.leader]?.BUY  ?? 0,
-    sells:      sideMap[row.leader]?.SELL ?? 0,
-    lastSide:   latestSwaps[i]?.side,
-    lastPrice:  latestSwaps[i]?.wsomiPrice ? Number(latestSwaps[i]!.wsomiPrice) : null,
-    lastVolume: latestSwaps[i]?.usdValue   ? Number(latestSwaps[i]!.usdValue) : null,
-    lastSeen:   latestSwaps[i]?.timestamp  ?? null,
-  }));
+  // Build win rate maps
+  const closedMap: Record<string, { count: number; pnl: number }> = {};
+  for (const row of closedByLeader) {
+    closedMap[row.leader] = { count: row._count._all, pnl: Number(row._sum.pnl ?? 0) };
+  }
+  const winsMap: Record<string, number> = {};
+  for (const row of winsByLeader) {
+    winsMap[row.leader] = row._count._all;
+  }
+
+  const traders = rows.map((row, i) => {
+    const closed   = closedMap[row.leader]?.count ?? 0;
+    const wins     = winsMap[row.leader] ?? 0;
+    return {
+      rank:               i + 1,
+      address:            row.leader,
+      trades:             row._count.id,
+      volume:             Number(row._sum.usdValue ?? 0),
+      buys:               sideMap[row.leader]?.BUY  ?? 0,
+      sells:              sideMap[row.leader]?.SELL ?? 0,
+      lastSide:           latestSwaps[i]?.side,
+      lastPrice:          latestSwaps[i]?.wsomiPrice ? Number(latestSwaps[i]!.wsomiPrice) : null,
+      lastVolume:         latestSwaps[i]?.usdValue   ? Number(latestSwaps[i]!.usdValue) : null,
+      lastSeen:           latestSwaps[i]?.timestamp  ?? null,
+      winRate:            closed > 0 ? Math.round((wins / closed) * 100) : null,
+      closedPositions:    closed,
+      totalPnlGenerated:  closedMap[row.leader]?.pnl ?? 0,
+    };
+  });
 
   return NextResponse.json({ window, since: since.toISOString(), traders });
   } catch (err: unknown) {

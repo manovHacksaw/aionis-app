@@ -86,6 +86,11 @@ export default function TradesPage() {
     return t.status === filter;
   });
 
+  const openCount    = trades.filter(t => t.status === 'OPEN').length;
+  const closedCount  = trades.filter(t => t.status === 'CLOSED').length;
+  const skippedCount = trades.filter(t => t.status === 'SKIPPED').length;
+  const netPnl       = trades.filter(t => t.status === 'CLOSED').reduce((s, t) => s + t.pnl, 0);
+
   return (
     <div className="text-foreground px-[7.5%] py-8 w-full select-none">
       {/* Header */}
@@ -138,6 +143,25 @@ export default function TradesPage() {
       {isConnected && error && (
         <div className="py-24 text-center text-red-500/60 text-[14px] bg-card/50 backdrop-blur-sm border border-border/50 rounded-2xl">
           {error}
+        </div>
+      )}
+
+      {isConnected && !loading && !error && trades.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 mb-6">
+          <div className="flex items-center gap-2 bg-surface border border-border/60 rounded-xl px-4 py-2 text-[12px]">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-subtle">{openCount} open</span>
+            <span className="text-border/60">·</span>
+            <span className="text-subtle">{closedCount} closed</span>
+            <span className="text-border/60">·</span>
+            <span className="text-subtle">{skippedCount} skipped by agent</span>
+          </div>
+          {closedCount > 0 && (
+            <div className={`flex items-center gap-1.5 bg-surface border border-border/60 rounded-xl px-4 py-2 text-[12px] ${netPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              <span className="text-subtle">Net P&amp;L</span>
+              <span className="font-mono font-medium">{netPnl >= 0 ? '+' : ''}${netPnl.toFixed(2)}</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -287,6 +311,13 @@ export default function TradesPage() {
                                   Close ↗
                                 </a>
                               )}
+                              <a
+                                href={`/traders/${trade.leader}/manage`}
+                                className="text-accent/60 hover:text-accent transition-colors text-[11px]"
+                                title="View full agent reasoning for this leader"
+                              >
+                                Agent log →
+                              </a>
                             </div>
                           </td>
                         </tr>

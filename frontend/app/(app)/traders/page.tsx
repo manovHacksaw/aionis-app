@@ -6,16 +6,26 @@ import Link from 'next/link';
 import Avatar from '@/components/Avatar';
 
 type Trader = {
-  rank:     number;
-  address:  string;
-  trades:   number;
-  volume:   number;
-  buys:     number;
-  sells:    number;
-  lastSeen: string | null;
+  rank:              number;
+  address:           string;
+  trades:            number;
+  volume:            number;
+  buys:              number;
+  sells:             number;
+  lastSeen:          string | null;
+  winRate:           number | null;
+  closedPositions:   number;
+  totalPnlGenerated: number;
 };
 
-type SortKey = 'volume' | 'trades' | 'buys';
+type PlatformStats = {
+  activeAgents:  number;
+  ausdLocked:    number;
+  totalPositions: number;
+  openPositions: number;
+};
+
+type SortKey = 'volume' | 'trades' | 'buys' | 'winRate';
 const WINDOWS = ['1h', '6h', '24h'] as const;
 type Window = typeof WINDOWS[number];
 
@@ -31,7 +41,8 @@ const timeAgo = (iso: string | null) => {
 
 export default function TradersPage() {
   const router = useRouter();
-  const [traders, setTraders] = useState<Trader[]>([]);
+  const [traders,       setTraders]       = useState<Trader[]>([]);
+  const [platformStats, setPlatformStats] = useState<PlatformStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<string | null>(null);
   const [search,  setSearch]  = useState('');
@@ -48,9 +59,25 @@ export default function TradersPage() {
       .finally(() => setLoading(false));
   }, [window]);
 
+  useEffect(() => {
+    fetch('/api/stats')
+      .then((r) => r.json())
+      .then((d) => setPlatformStats(d))
+      .catch(() => {});
+  }, []);
+
   const visible = traders
     .filter((t) => t.address.toLowerCase().includes(search.toLowerCase()))
-    .sort((a, b) => b[sortBy] - a[sortBy]);
+    .sort((a, b) => {
+      if (sortBy === 'winRate') {
+        // nulls go to the bottom
+        if (a.winRate === null && b.winRate === null) return 0;
+        if (a.winRate === null) return 1;
+        if (b.winRate === null) return -1;
+        return b.winRate - a.winRate;
+      }
+      return b[sortBy] - a[sortBy];
+    });
 
   const queryAddress = search.trim();
   const isValidAddress = /^0x[a-fA-F0-9]{40}$/.test(queryAddress);
@@ -94,21 +121,40 @@ export default function TradersPage() {
             onChange={(e) => setSortBy(e.target.value as SortKey)}
             className="bg-surface border border-border rounded-xl px-3 py-2 text-[13px] text-foreground focus:outline-none cursor-pointer"
           >
-            <option value="volume" className="bg-card">Volume</option>
-            <option value="trades" className="bg-card">Trades</option>
-            <option value="buys"   className="bg-card">Buys</option>
+            <option value="volume"  className="bg-card">Volume</option>
+            <option value="trades"  className="bg-card">Trades</option>
+            <option value="buys"    className="bg-card">Buys</option>
+            <option value="winRate" className="bg-card">Win Rate</option>
           </select>
         </div>
       </div>
 
+      {/* Platform stats bar */}
+      {platformStats && (
+        <div className="flex flex-wrap gap-3 mb-6">
+          {[
+            { label: 'Active Agents',         value: platformStats.activeAgents.toString() },
+            { label: 'aUSD Under Management', value: platformStats.ausdLocked >= 1000 ? `$${(platformStats.ausdLocked / 1000).toFixed(1)}k` : `$${platformStats.ausdLocked.toFixed(0)}` },
+            { label: 'Positions Opened',      value: platformStats.totalPositions.toString() },
+            { label: 'Open Now',              value: platformStats.openPositions.toString() },
+          ].map((s) => (
+            <div key={s.label} className="flex items-center gap-2 bg-surface border border-border/60 rounded-xl px-4 py-2">
+              <span className="text-[11px] text-subtle uppercase tracking-wider">{s.label}</span>
+              <span className="text-[13px] font-medium text-foreground tabular-nums">{s.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Column headers */}
       {!error && (loading || visible.length > 0 || isValidAddress) && (
-        <div className="grid grid-cols-[2rem_1fr_6rem_6rem_5rem_6rem] gap-4 px-4 mb-2 text-[11px] uppercase tracking-widest text-subtle">
+        <div className="grid grid-cols-[2rem_1fr_6rem_6rem_5rem_5rem_6rem] gap-4 px-4 mb-2 text-[11px] uppercase tracking-widest text-subtle">
           <span>#</span>
           <span>Trader</span>
           <span className="text-right">Volume</span>
           <span className="text-right">Trades</span>
           <span className="text-right">Buy %</span>
+          <span className="text-right">Win Rate</span>
           <span className="text-right">Last Active</span>
         </div>
       )}
@@ -118,7 +164,7 @@ export default function TradersPage() {
           {[...Array(5)].map((_, i) => (
             <div
               key={i}
-              className="grid grid-cols-[2rem_1fr_6rem_6rem_5rem_6rem] gap-4 items-center px-4 py-3.5 rounded-xl border border-transparent animate-fade-in-up"
+              className="grid grid-cols-[2rem_1fr_6rem_6rem_5rem_5rem_6rem] gap-4 items-center px-4 py-3.5 rounded-xl border border-transparent animate-fade-in-up"
               style={{ animationDelay: `${i * 50}ms` }}
             >
               {/* Rank */}
@@ -138,7 +184,10 @@ export default function TradersPage() {
               
               {/* Buy % */}
               <div className="h-4 rounded w-10 ml-auto animate-shimmer" />
-              
+
+              {/* Win Rate */}
+              <div className="h-4 rounded w-10 ml-auto animate-shimmer" />
+
               {/* Last Seen */}
               <div className="h-4 rounded w-14 ml-auto animate-shimmer" />
             </div>
@@ -161,7 +210,7 @@ export default function TradersPage() {
             <div
               key={queryAddress}
               onClick={() => router.push(`/traders/${queryAddress}`)}
-              className="grid grid-cols-[2rem_1fr_6rem_6rem_5rem_6rem] gap-4 items-center px-4 py-3.5 rounded-xl border border-dashed border-border bg-surface/10 hover:border-accent/40 hover:bg-surface/20 cursor-pointer transition-spring hover:translate-x-1 animate-fade-in-up"
+              className="grid grid-cols-[2rem_1fr_6rem_6rem_5rem_5rem_6rem] gap-4 items-center px-4 py-3.5 rounded-xl border border-dashed border-border bg-surface/10 hover:border-accent/40 hover:bg-surface/20 cursor-pointer transition-spring hover:translate-x-1 animate-fade-in-up"
             >
               <span className="text-[12px] text-subtle tabular-nums">—</span>
 
@@ -175,17 +224,22 @@ export default function TradersPage() {
               <span className="text-right text-[13px] text-subtle tabular-nums">—</span>
               <span className="text-right text-[13px] text-subtle tabular-nums">—</span>
               <span className="text-right text-[13px] text-subtle tabular-nums">—</span>
+              <span className="text-right text-[13px] text-subtle tabular-nums">—</span>
               <span className="text-right text-[12px] text-subtle tabular-nums">—</span>
             </div>
           )}
           {visible.map((trader) => {
             const total    = trader.buys + trader.sells;
             const buyRatio = total > 0 ? Math.round((trader.buys / total) * 100) : 0;
+            const winRateColor = trader.winRate === null ? 'text-subtle'
+              : trader.winRate >= 50 ? 'text-emerald-400'
+              : trader.winRate >= 30 ? 'text-amber-400'
+              : 'text-red-400';
             return (
               <div
                 key={trader.address}
                 onClick={() => router.push(`/traders/${trader.address}`)}
-                className="grid grid-cols-[2rem_1fr_6rem_6rem_5rem_6rem] gap-4 items-center px-4 py-3.5 rounded-xl border border-transparent hover:border-accent/30 hover:bg-surface/30 cursor-pointer transition-spring hover:translate-x-1 animate-fade-in-up"
+                className="grid grid-cols-[2rem_1fr_6rem_6rem_5rem_5rem_6rem] gap-4 items-center px-4 py-3.5 rounded-xl border border-transparent hover:border-accent/30 hover:bg-surface/30 cursor-pointer transition-spring hover:translate-x-1 animate-fade-in-up"
                 style={{ animationDelay: `${(trader.rank % 10) * 40}ms` }}
               >
                 <span className="text-[12px] text-subtle tabular-nums">{trader.rank}</span>
@@ -208,6 +262,17 @@ export default function TradersPage() {
                 <span className={`text-right text-[13px] tabular-nums ${buyRatio >= 50 ? 'text-emerald-400' : 'text-red-400'}`}>
                   {buyRatio}%
                 </span>
+
+                <div className="text-right">
+                  {trader.winRate !== null ? (
+                    <>
+                      <span className={`text-[13px] tabular-nums ${winRateColor}`}>{trader.winRate}%</span>
+                      <span className="block text-[10px] text-subtle">{trader.closedPositions} closed</span>
+                    </>
+                  ) : (
+                    <span className="text-[13px] text-subtle">—</span>
+                  )}
+                </div>
 
                 <span className="text-right text-[12px] text-subtle tabular-nums">
                   {timeAgo(trader.lastSeen)}
