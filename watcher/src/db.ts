@@ -94,6 +94,7 @@ export interface Db {
     exitPrice:         number;
     closedAt:          Date;
     txHashClose?:      string;
+    closeReason?:      string;
   }): Promise<void>;
 }
 
@@ -339,6 +340,7 @@ export function createPrismaDb(): Db {
           exitPrice:    data.exitPrice,
           closedAt:     data.closedAt,
           txHashClose:  data.txHashClose,
+          closeReason:  data.closeReason ?? null,
         },
       });
     },

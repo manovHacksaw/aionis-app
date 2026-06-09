@@ -61,16 +61,23 @@ function AgentActivityLogs({
 }) {
   const [activity, setActivity]               = useState<TradeAttempt[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
+  const [refreshTick, setRefreshTick]         = useState(0);
 
   useEffect(() => {
     if (!follower) return;
-    setActivityLoading(true);
+    const id = setInterval(() => setRefreshTick((t) => t + 1), 30_000);
+    return () => clearInterval(id);
+  }, [follower]);
+
+  useEffect(() => {
+    if (!follower) return;
+    if (refreshTick === 0) setActivityLoading(true);
     fetch(`/api/vaults/${follower}/activity?leader=${leaderAddress}`)
       .then((r) => r.json())
       .then((d) => setActivity(d.attempts ?? []))
       .catch(() => setActivity([]))
       .finally(() => setActivityLoading(false));
-  }, [follower, leaderAddress]);
+  }, [follower, leaderAddress, refreshTick]);
 
   return (
     <div className="bg-card border border-border/80 rounded-2xl p-5 space-y-4">
@@ -355,8 +362,14 @@ export default function ManageAgentPage({ params }: PageProps) {
   const leaderAddress  = resolvedParams.address as `0x${string}`;
   const { address }    = useAccount();
 
-  const [stats,    setStats]    = useState<LeaderStats | null>(null);
-  const [statsErr, setStatsErr] = useState(false);
+  const [stats,       setStats]       = useState<LeaderStats | null>(null);
+  const [statsErr,    setStatsErr]    = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setRefreshTick((t) => t + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     if (!leaderAddress) return;
@@ -367,7 +380,7 @@ export default function ManageAgentPage({ params }: PageProps) {
       .then((r) => r.json())
       .then(setStats)
       .catch(() => setStatsErr(true));
-  }, [leaderAddress, address]);
+  }, [leaderAddress, address, refreshTick]);
 
   const total24h  = (stats?.stats24h.buys ?? 0) + (stats?.stats24h.sells ?? 0);
   const buyPct    = total24h > 0 ? Math.round((stats!.stats24h.buys / total24h) * 100) : 0;

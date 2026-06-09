@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
 import ConnectButton from '@/components/ConnectButton';
@@ -230,20 +230,38 @@ export default function PortfolioPage() {
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState<string | null>(null);
   const [activityData, setActivityData] = useState<ActivityData | null>(null);
+  const [refreshTick,  setRefreshTick]  = useState(0);
+  const hasFetched = useRef(false);
+
+  // Clear stale data and reset initial-load flag when address changes
+  useEffect(() => {
+    hasFetched.current = false;
+    setAgents([]);
+    setSummary(null);
+    setActivityData(null);
+    setError(null);
+  }, [address]);
+
+  // 30s silent auto-refresh while connected
+  useEffect(() => {
+    if (!isConnected) return;
+    const id = setInterval(() => setRefreshTick((t) => t + 1), 30_000);
+    return () => clearInterval(id);
+  }, [isConnected]);
 
   useEffect(() => {
     if (!address) return;
-    setLoading(true);
-    setError(null);
+    if (!hasFetched.current) setLoading(true);
     fetch(`/api/vaults/${address}`)
       .then((r) => r.json())
       .then((d) => {
         setAgents(d.vaults ?? []);
         setSummary(d.summary ?? null);
+        hasFetched.current = true;
       })
-      .catch(() => setError('Failed to load portfolio.'))
+      .catch(() => { if (!hasFetched.current) setError('Failed to load portfolio.'); })
       .finally(() => setLoading(false));
-  }, [address]);
+  }, [address, refreshTick]);
 
   useEffect(() => {
     if (!address) return;
@@ -251,7 +269,7 @@ export default function PortfolioPage() {
       .then((r) => r.json())
       .then((d) => setActivityData(d))
       .catch(() => {});
-  }, [address]);
+  }, [address, refreshTick]);
 
   const holdings = useMemo(() => aggregateHoldings(agents), [agents]);
   const openPositionCount = holdings.reduce((sum, h) => sum + h.byAgent.reduce((s, a) => s + a.positionCount, 0), 0);

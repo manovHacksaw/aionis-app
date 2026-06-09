@@ -1,6 +1,7 @@
 import { createPublicClient, http, parseAbiItem } from 'viem';
 import { somniaTestnet, VAULT_MANAGER_ADDRESS }  from './config.js';
 import { log, warn, error }                       from './logger.js';
+import { consumeStopLoss }                        from './stop-loss-registry.js';
 import type { Db }                                from './db.js';
 
 const VAULT_MANAGER = VAULT_MANAGER_ADDRESS;
@@ -65,13 +66,16 @@ async function handleLog(logEntry: any, db: Db): Promise<void> {
 
   } else if (eventName === 'PositionClosed') {
     const { positionId, pnl, exitPrice } = args;
+    const posId       = (positionId as string).toLowerCase();
+    const isStopLoss  = consumeStopLoss(posId);
 
     await db.closeOnChainPosition({
-      onChainPositionId: (positionId as string).toLowerCase(),
+      onChainPositionId: posId,
       pnl:               Number(pnl as bigint) / 1e6,
       exitPrice:         Number(exitPrice as bigint) / 1e10,
       closedAt:          new Date(),
       txHashClose:       transactionHash,
+      closeReason:       isStopLoss ? 'STOP_LOSS' : undefined,
     });
 
     const pnlSign = Number(pnl as bigint) >= 0 ? '+' : '';

@@ -17,6 +17,7 @@ type Trade = {
   pnlPct: number;
   status: 'OPEN' | 'CLOSED' | 'SKIPPED';
   reason: string | null;
+  closeReason: string | null;
   openedAt: string;
   closedAt: string | null;
   txHashOpen: string | null;
@@ -268,6 +269,12 @@ export default function TradesPage() {
                                 }`} />
                                 {trade.status.toLowerCase()}
                               </span>
+                              {trade.closeReason === 'STOP_LOSS' && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold bg-red-500/10 text-red-400 border border-red-500/20 uppercase tracking-wide">
+                                  <span className="w-1 h-1 rounded-full bg-red-400" />
+                                  Stop-loss
+                                </span>
+                              )}
                               {trade.status === 'SKIPPED' && trade.reason && (
                                 <span className="text-[10px] text-amber-400/60 max-w-[140px] text-center leading-tight" title={trade.reason}>
                                   {trade.reason.charAt(0).toUpperCase() + trade.reason.slice(1)}

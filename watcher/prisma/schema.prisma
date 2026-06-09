@@ -102,6 +102,7 @@ model Position {
   closedAt          DateTime?  @map("closed_at")
   txHashOpen        String?    @map("tx_hash_open")
   txHashClose       String?    @map("tx_hash_close")
+  closeReason       String?    @map("close_reason")
   vault             UserVault  @relation(fields: [vaultId], references: [id])
 
   @@index([follower, status])

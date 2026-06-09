@@ -1,6 +1,7 @@
 import { getCurrentWsomiPrice, getCurrentNiaPrice } from './price.js';
 import { callUpdatePrice, waitForPrice, callClosePosition } from './keeper.js';
 import { log, warn, error } from './logger.js';
+import { markStopLoss } from './stop-loss-registry.js';
 import type { Db } from './db.js';
 
 // Global fallback (env STOP_LOSS_PCT) used only for startup log; actual threshold is per-vault
@@ -34,6 +35,8 @@ async function triggerStopLoss(
     await callUpdatePrice(tokenAddr);
     await waitForPrice(tokenAddr);
     log('pnl', `stop-loss: price confirmed — closing posId=${positionId.slice(0, 10)}…`);
+    // Register before the tx so vault-listener stamps STOP_LOSS when it sees PositionClosed
+    markStopLoss(positionId);
     await callClosePosition(positionId as `0x${string}`);
     log('pnl', `stop-loss: position closed ✓  posId=${positionId.slice(0, 10)}…`);
   } finally {
