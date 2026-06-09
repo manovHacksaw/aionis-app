@@ -175,6 +175,7 @@ export function useVault(leaderAddress?: `0x${string}`) {
       maxLeaderTradeUsd: number;
       minAllocUsd:       number;
       maxAllocUsd:       number;
+      stopLossPct:       number;
     };
   }) {
     if (!follower || !leaderAddress) throw new Error('wallet not connected');

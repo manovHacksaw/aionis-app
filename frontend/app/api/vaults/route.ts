@@ -21,6 +21,7 @@ export async function POST(req: Request) {
     maxLeaderTradeUsd,
     minAllocUsd,
     maxAllocUsd,
+    stopLossPct,
   } = body;
 
   if (!follower || !leader || !ausdLocked || !riskLevel) {
@@ -39,6 +40,7 @@ export async function POST(req: Request) {
     maxLeaderTradeUsd: maxLeaderTradeUsd ?? 0,
     minAllocUsd:       minAllocUsd       ?? 0,
     maxAllocUsd:       maxAllocUsd       ?? 0,
+    stopLossPct:       stopLossPct       ?? 20,
   };
 
   const vault = await prisma.userVault.upsert({

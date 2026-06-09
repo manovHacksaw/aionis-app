@@ -81,6 +81,7 @@ model UserVault {
   maxLeaderTradeUsd Decimal @default(0)              @map("max_leader_trade_usd") @db.Decimal(20, 6)
   minAllocUsd       Decimal @default(0)              @map("min_alloc_usd")        @db.Decimal(20, 6)
   maxAllocUsd       Decimal @default(0)              @map("max_alloc_usd")        @db.Decimal(20, 6)
+  stopLossPct       Int     @default(20)             @map("stop_loss_pct")
 
   status         String     @default("ACTIVE")
   onChainVaultId String?    @map("on_chain_vault_id")

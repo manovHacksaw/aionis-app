@@ -95,6 +95,7 @@ function CreateAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
   const [maxLeaderTrade,  setMaxLeaderTrade]  = useState('');
   const [minAlloc,        setMinAlloc]        = useState('');
   const [maxAlloc,        setMaxAlloc]        = useState('');
+  const [stopLossPct,     setStopLossPct]     = useState(20);
 
   const cooldownH      = Math.floor(cooldownSeconds / 3600);
   const cooldownM      = Math.ceil((cooldownSeconds % 3600) / 60);
@@ -133,6 +134,7 @@ function CreateAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
           maxLeaderTradeUsd: parsedMaxLeaderTrade,
           minAllocUsd:       parsedMinAlloc,
           maxAllocUsd:       parsedMaxAlloc,
+          stopLossPct,
         },
       });
       router.push('/portfolio');
@@ -267,6 +269,17 @@ function CreateAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
                     className="bg-foreground/[0.03] border border-border rounded-xl px-4 py-2.5 text-[13px] text-foreground focus:outline-none focus:border-foreground/30 transition-all font-mono" />
                 </div>
                 {!allocRangeValid && <p className="text-[11px] text-red-400">Min must be less than or equal to max</p>}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <label className="text-[12px] text-foreground/60">Max Loss %</label>
+                  <span className="text-[12px] text-foreground/30 font-mono">{stopLossPct}%</span>
+                </div>
+                <input type="range" min="5" max="50" step="5" value={stopLossPct}
+                  onChange={(e) => setStopLossPct(parseInt(e.target.value))}
+                  className="w-full accent-accent cursor-pointer" />
+                <p className="text-[11px] text-foreground/30">Auto-close a position when its drawdown exceeds this threshold. Your agent acts autonomously to limit losses.</p>
               </div>
             </div>
           )}

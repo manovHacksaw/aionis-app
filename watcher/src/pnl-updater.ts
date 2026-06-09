@@ -3,8 +3,8 @@ import { callUpdatePrice, waitForPrice, callClosePosition } from './keeper.js';
 import { log, warn, error } from './logger.js';
 import type { Db } from './db.js';
 
-// Configurable via env — default 20 % drawdown triggers auto-close
-const STOP_LOSS_PCT = Number(process.env.STOP_LOSS_PCT ?? '20') / 100;
+// Global fallback (env STOP_LOSS_PCT) used only for startup log; actual threshold is per-vault
+const DEFAULT_STOP_LOSS_PCT = Number(process.env.STOP_LOSS_PCT ?? '20');
 
 // On-chain token addresses (VaultManager uses these as price-oracle keys)
 const TOKEN_ADDRESS: Record<string, `0x${string}`> = {
@@ -44,7 +44,7 @@ async function triggerStopLoss(
 /** Polls open on-chain positions every 60s, updates token prices in DB,
  *  and triggers stop-loss auto-close when drawdown exceeds STOP_LOSS_PCT. */
 export function startPnlUpdater(db: Db): () => void {
-  log('pnl', `P&L updater started (60s interval, stop-loss threshold: -${(STOP_LOSS_PCT * 100).toFixed(0)}%)`);
+  log('pnl', `P&L updater started (60s interval, stop-loss: per-vault (env default: ${DEFAULT_STOP_LOSS_PCT}%))`);
 
   const timer = setInterval(async () => {
     try {
@@ -109,8 +109,9 @@ export function startPnlUpdater(db: Db): () => void {
           warn('pnl', `large swing — follower=${pos.follower.slice(0, 10)}… ${(pct * 100).toFixed(1)}%`);
         }
 
-        // ── Stop-loss ─────────────────────────────────────────────────────
-        if (pct < -STOP_LOSS_PCT) {
+        // ── Stop-loss (per-vault threshold from DB) ───────────────────────
+        const stopLossThreshold = pos.stopLossPct / 100;
+        if (pct < -stopLossThreshold) {
           if (closingSet.has(pos.onChainPositionId)) {
             log('pnl', `stop-loss already in progress for posId=${pos.onChainPositionId.slice(0, 10)}…`);
             continue;

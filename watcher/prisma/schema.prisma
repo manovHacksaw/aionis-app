@@ -74,6 +74,7 @@ model UserVault {
   riskLevel      Int        @map("risk_level")
   maxPerTradePct Int        @map("max_per_trade_pct")
   allowlistJson  Json       @default("[]")           @map("allowlist_json")
+  stopLossPct    Int        @default(20)             @map("stop_loss_pct")
   status         String     @default("ACTIVE")
   onChainVaultId String?    @map("on_chain_vault_id")
   createdAt      DateTime   @default(now())          @map("created_at")
