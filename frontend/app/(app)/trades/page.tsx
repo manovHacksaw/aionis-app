@@ -194,7 +194,9 @@ export default function TradesPage() {
                           </td>
                           {/* Allocated / Size */}
                           <td className="py-4 px-6 text-right font-medium text-foreground tabular-nums">
-                            {`${trade.ausdcAllocated.toLocaleString(undefined, { minimumFractionDigits: 2 })} aUSD`}
+                            {trade.status === 'SKIPPED' || trade.ausdcAllocated === 0
+                              ? <span className="text-subtle">—</span>
+                              : `${trade.ausdcAllocated.toLocaleString(undefined, { minimumFractionDigits: 2 })} aUSD`}
                           </td>
                           {/* Entry Price */}
                           <td className="py-4 px-6 text-right text-muted tabular-nums">
@@ -243,8 +245,8 @@ export default function TradesPage() {
                                 {trade.status.toLowerCase()}
                               </span>
                               {trade.status === 'SKIPPED' && trade.reason && (
-                                <span className="text-[10px] text-amber-400/60 max-w-[120px] text-center leading-tight truncate" title={trade.reason}>
-                                  {trade.reason}
+                                <span className="text-[10px] text-amber-400/60 max-w-[140px] text-center leading-tight" title={trade.reason}>
+                                  {trade.reason.charAt(0).toUpperCase() + trade.reason.slice(1)}
                                 </span>
                               )}
                             </div>

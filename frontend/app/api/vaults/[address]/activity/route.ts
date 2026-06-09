@@ -173,7 +173,7 @@ export async function GET(
           type:      'TRADE_OPENED',
           actor:     leader,
           message:   a.token
-            ? `Your agent opened a ${a.token} position copying ${leader.slice(0, 6)}…${leader.slice(-4)}`
+            ? `Your agent opened a ${a.token} position copying ${leader.slice(0, 6)}…${leader.slice(-4)}${a.ausdAllocated != null ? ` · ${a.ausdAllocated.toFixed(2)} aUSD` : ''}`
             : `Your agent opened a new position copying ${leader.slice(0, 6)}…${leader.slice(-4)}`,
           metadata:  { token: a.token, ausdAllocated: a.ausdAllocated, entryPrice: a.entryPrice, txHash: a.txHash },
           dedupeKey,
