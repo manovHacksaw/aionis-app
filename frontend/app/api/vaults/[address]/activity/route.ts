@@ -231,13 +231,21 @@ export async function GET(
     console.error('[activity API] Failed to fetch UserVault details:', err);
   }
 
-  // Generate and attach explanations in parallel
+  // Generate and attach explanations in parallel.
+  // Wrapped per-item so a single failure doesn't wipe all explanations.
   const populatedAttempts = await Promise.all(
     attempts.reverse().map(async (a) => {
       let explanation: string | null = null;
       if (a.status === 'opened' || a.status === 'skipped') {
-        explanation = await explainTrade(a, riskLevel, maxPerTradePct, limits);
+        try {
+          explanation = await explainTrade(a, riskLevel, maxPerTradePct, limits);
+          // explainTrade always returns a string — guard against empty-string cache entries
+          if (!explanation) explanation = null;
+        } catch (err) {
+          console.error(`[activity API] explainTrade failed for requestId=${a.requestId}:`, err);
+        }
       }
+      console.log(`[activity API] attempt requestId=${a.requestId} status=${a.status} explanation=${explanation ? explanation.slice(0, 60) + '…' : 'null'}`);
       return { ...a, explanation };
     })
   );

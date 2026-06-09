@@ -45,7 +45,9 @@ export async function explainTrade(
     const cached = await prisma.tradeExplanation.findUnique({
       where: { requestId },
     });
-    if (cached) {
+    // Guard against empty-string cache entries from a previous broken run
+    if (cached?.explanation) {
+      console.log(`[explainTrade] cache hit requestId=${requestId}`);
       return cached.explanation;
     }
   } catch (err) {
@@ -56,8 +58,11 @@ export async function explainTrade(
   const geminiKey = process.env.GEMINI_API_KEY;
   const openaiKey = process.env.OPENAI_API_KEY;
 
+  console.log(`[explainTrade] cache miss requestId=${requestId} status=${attempt.status} gemini=${!!geminiKey} openai=${!!openaiKey}`);
+
   if (!geminiKey && !openaiKey) {
     const fallback = getDefaultExplanation(attempt, riskLevel, limits);
+    console.log(`[explainTrade] no LLM key — using fallback: "${fallback.slice(0, 60)}…"`);
     await saveCache(requestId, fallback);
     return fallback;
   }
@@ -148,6 +153,7 @@ Write only the final sentence. Do not include any quotes, formatting, prefix, or
 }
 
 async function saveCache(requestId: string, explanation: string): Promise<void> {
+  if (!explanation) return; // never cache empty strings
   try {
     await prisma.tradeExplanation.upsert({
       where: { requestId },
