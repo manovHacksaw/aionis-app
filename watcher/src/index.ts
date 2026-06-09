@@ -3,6 +3,7 @@ import { createServer }                     from 'node:http';
 import { createPrismaDb, disconnectPrisma } from './db.js';
 import { startWatcher }                     from './watcher.js';
 import { startPnlUpdater }                  from './pnl-updater.js';
+import { startVaultListener }               from './vault-listener.js';
 import { closeRedis }                       from './dedup.js';
 import { getKeeperInfo }                    from './keeper.js';
 import { log, warn }                        from './logger.js';
@@ -51,8 +52,9 @@ const db = createPrismaDb();
 
 log('startup', 'DB client ready. Starting watcher and P&L updater…');
 
-const stopWatcher    = await startWatcher(db);
-const stopPnlUpdater = startPnlUpdater(db);
+const stopWatcher       = await startWatcher(db);
+const stopPnlUpdater    = startPnlUpdater(db);
+const stopVaultListener = startVaultListener(db);
 
 // Render web services require an HTTP port to be bound — this also doubles
 // as the endpoint the keep-alive cron pings to stop the free instance idling.
@@ -73,6 +75,7 @@ async function shutdown() {
   server.close();
   stopWatcher();
   stopPnlUpdater();
+  stopVaultListener();
   await closeRedis();
   await disconnectPrisma();
   process.exit(0);

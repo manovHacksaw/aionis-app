@@ -65,6 +65,27 @@ export interface Db {
   closePosition(id: string, exitPrice: number, pnl: number): Promise<void>;
   getAllOpenPositions(): Promise<PaperTrade[]>;
   upsertTokenPrice(token: string, price: number): Promise<void>;
+  // ── On-chain position tracking (for frontend fast reads) ─────────────────
+  findVaultByOnChainId(onChainVaultId: string): Promise<{ id: string; follower: string; leader: string } | null>;
+  upsertOnChainPosition(data: {
+    onChainPositionId: string;
+    follower:          string;
+    leader:            string;
+    vaultId:           string;
+    token:             string;
+    ausdcAllocated:    number;
+    entryPrice:        number;
+    status:            'OPEN';
+    openedAt:          Date;
+    txHashOpen?:       string;
+  }): Promise<void>;
+  closeOnChainPosition(data: {
+    onChainPositionId: string;
+    pnl:               number;
+    exitPrice:         number;
+    closedAt:          Date;
+    txHashClose?:      string;
+  }): Promise<void>;
 }
 
 // ── Prisma singleton ──────────────────────────────────────────────────────────
@@ -252,6 +273,48 @@ export function createPrismaDb(): Db {
         where:  { token: token.toUpperCase() },
         update: { price },
         create: { token: token.toUpperCase(), price },
+      });
+    },
+
+    async findVaultByOnChainId(onChainVaultId) {
+      const row = await prisma.userVault.findFirst({
+        where:  { onChainVaultId: onChainVaultId.toLowerCase() },
+        select: { id: true, follower: true, leader: true },
+      });
+      return row ?? null;
+    },
+
+    async upsertOnChainPosition(data) {
+      const existing = await prisma.position.findFirst({
+        where: { onChainPositionId: data.onChainPositionId },
+      });
+      if (existing) return; // already recorded — don't overwrite open positions
+      await prisma.position.create({
+        data: {
+          follower:          data.follower.toLowerCase(),
+          leader:            data.leader.toLowerCase(),
+          vaultId:           data.vaultId,
+          token:             data.token,
+          ausdcAllocated:    data.ausdcAllocated,
+          entryPrice:        data.entryPrice,
+          status:            'OPEN',
+          onChainPositionId: data.onChainPositionId,
+          openedAt:          data.openedAt,
+          txHashOpen:        data.txHashOpen,
+        },
+      });
+    },
+
+    async closeOnChainPosition(data) {
+      await prisma.position.updateMany({
+        where: { onChainPositionId: data.onChainPositionId, status: 'OPEN' },
+        data:  {
+          status:       'CLOSED',
+          pnl:          data.pnl,
+          exitPrice:    data.exitPrice,
+          closedAt:     data.closedAt,
+          txHashClose:  data.txHashClose,
+        },
       });
     },
   };
