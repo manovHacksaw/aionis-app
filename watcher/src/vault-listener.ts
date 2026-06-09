@@ -2,6 +2,7 @@ import { createPublicClient, http, parseAbiItem } from 'viem';
 import { somniaTestnet, VAULT_MANAGER_ADDRESS }  from './config.js';
 import { log, warn, error }                       from './logger.js';
 import { consumeStopLoss }                        from './stop-loss-registry.js';
+import { writeHeartbeat }                         from './heartbeat.js';
 import type { Db }                                from './db.js';
 
 const VAULT_MANAGER = VAULT_MANAGER_ADDRESS;
@@ -99,6 +100,7 @@ export function startVaultListener(db: Db): () => void {
 
   const poll = async () => {
     try {
+      writeHeartbeat(); // fire-and-forget; non-blocking
       const latest = await client.getBlockNumber();
 
       if (lastBlock === null) {

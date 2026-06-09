@@ -169,8 +169,8 @@ function CreateAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
 
       <form onSubmit={handleSubmit} className="bg-card border border-border/80 rounded-2xl p-6 space-y-6 animate-fade-in-up">
         <div>
-          <h2 className="text-[20px] font-light tracking-tight text-foreground mb-1">Deploy Agent</h2>
-          <p className="text-foreground/40 text-[12px]">Lock aUSD to deploy a copy-trading agent and copy this leader&apos;s swaps automatically.</p>
+          <h2 className="text-[20px] font-light tracking-tight text-foreground mb-1">Deploy AI Agent</h2>
+          <p className="text-foreground/40 text-[12px]">Configure your agent&apos;s parameters — it will operate autonomously on Somnia from the moment you deploy.</p>
         </div>
 
         <div className="space-y-2">
@@ -315,6 +315,45 @@ function CreateAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
           {selectedTokens.length === 0 && <p className="text-[11px] text-red-400">Select at least one token</p>}
         </div>
 
+        {/* Agent preview — what this agent will actually do */}
+        <div className="bg-foreground/[0.02] border border-foreground/[0.06] rounded-xl px-4 py-4 space-y-2">
+          <p className="text-[11px] uppercase tracking-wider text-foreground/30 mb-3">Your agent will</p>
+          {[
+            {
+              icon: '◉',
+              text: `Watch ${leaderAddress.slice(0, 6)}…${leaderAddress.slice(-4)} continuously on Somnia`,
+            },
+            {
+              icon: '⬡',
+              text: `Score each detected trade using the Strategist AI model`,
+            },
+            {
+              icon: '◈',
+              text: selectedTokens.length > 0
+                ? `Only copy ${AVAILABLE_TOKENS.filter(t => selectedTokens.includes(t.address)).map(t => t.symbol).join(', ')} trades`
+                : `Copy trades — select at least one token`,
+              muted: selectedTokens.length === 0,
+            },
+            {
+              icon: '◇',
+              text: `Commit up to ${RISK_MAX_PCT[riskLevel]}% of capital per trade (Risk ${riskLevel} · ${['', 'Very conservative', 'Conservative', 'Moderate', 'Aggressive', 'Max risk'][riskLevel]})`,
+            },
+            {
+              icon: '⬕',
+              text: `Auto-close any position that loses more than ${stopLossPct}% (stop-loss)`,
+            },
+            {
+              icon: '◌',
+              text: `Operate 24/7 via keeper delegation — no wallet interaction needed`,
+            },
+          ].map(({ icon, text, muted }) => (
+            <div key={text} className={`flex items-start gap-2.5 text-[12px] ${muted ? 'text-red-400/70' : 'text-foreground/50'}`}>
+              <span className="flex-shrink-0 mt-0.5 text-[10px] text-foreground/20">{icon}</span>
+              <span>{text}</span>
+            </div>
+          ))}
+        </div>
+
         {submitErr && (
           <p className="text-[12px] text-red-400 bg-red-400/5 border border-red-400/20 rounded-xl px-4 py-3 break-all">
             {submitErr}
@@ -338,7 +377,7 @@ function CreateAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
         )}
 
         <p className="text-[10px] text-foreground/20 text-center leading-normal">
-          Your capital is secure. aUSD is locked in your personal copy-trading agent contract on Somnia Testnet (chain 50312). The keeper will execute copy trades on your agent&apos;s behalf.
+          Your capital is non-custodial. aUSD is locked in your personal agent contract on Somnia (chain 50312). The keeper is authorized only to open and close positions — it cannot withdraw your funds.
         </p>
       </form>
     </div>

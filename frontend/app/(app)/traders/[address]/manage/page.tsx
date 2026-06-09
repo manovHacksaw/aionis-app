@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useState, use, useEffect } from 'react';
+import { useState, use, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAccount } from 'wagmi';
@@ -172,12 +172,28 @@ function ManageAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
     deposit, withdraw, closePosition, pauseVault, resumeVault, setKeeperManually,
   } = useVault(leaderAddress);
 
-  const [depositAmt,  setDepositAmt]  = useState('');
-  const [depositErr,  setDepositErr]  = useState<string | null>(null);
-  const [withdrawErr, setWithdrawErr] = useState<string | null>(null);
-  const [keeperErr,   setKeeperErr]   = useState<string | null>(null);
-  const [closingId,   setClosingId]   = useState<string | null>(null);
-  const [toggling,    setToggling]    = useState(false);
+  const [depositAmt,   setDepositAmt]   = useState('');
+  const [depositErr,   setDepositErr]   = useState<string | null>(null);
+  const [withdrawErr,  setWithdrawErr]  = useState<string | null>(null);
+  const [keeperErr,    setKeeperErr]    = useState<string | null>(null);
+  const [closingId,    setClosingId]    = useState<string | null>(null);
+  const [toggling,     setToggling]     = useState(false);
+  const [watcherOnline, setWatcherOnline] = useState<boolean | null>(null);
+  const [watcherAgeMs,  setWatcherAgeMs]  = useState<number | null>(null);
+  const watcherRef = useRef(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const poll = () => {
+      fetch('/api/watcher/status')
+        .then((r) => r.json())
+        .then((d) => { if (mounted) { setWatcherOnline(d.online); setWatcherAgeMs(d.ageMs); } })
+        .catch(() => { if (mounted) setWatcherOnline(false); });
+    };
+    if (!watcherRef.current) { poll(); watcherRef.current = true; }
+    const id = setInterval(poll, 20_000);
+    return () => { mounted = false; clearInterval(id); };
+  }, []);
 
   const parsedDeposit = parseFloat(depositAmt) || 0;
   const cooldownH     = Math.floor(cooldownSeconds / 3600);
@@ -226,11 +242,36 @@ function ManageAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
 
       {/* Status + toggle */}
       <div className="bg-card border border-border/80 rounded-2xl px-5 py-4 flex items-center justify-between hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring">
-        <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${vaultStatus === 'ACTIVE' ? 'bg-emerald-400' : 'bg-accent'}`} />
-          <span className={`text-[13px] font-medium ${vaultStatus === 'ACTIVE' ? 'text-emerald-400' : 'text-accent'}`}>
-            Agent Status: {vaultStatus}
-          </span>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${vaultStatus === 'ACTIVE' ? 'bg-emerald-400' : 'bg-accent'}`} />
+            <span className={`text-[13px] font-medium ${vaultStatus === 'ACTIVE' ? 'text-emerald-400' : 'text-accent'}`}>
+              Agent: {vaultStatus}
+            </span>
+          </div>
+          {/* Watcher heartbeat */}
+          {watcherOnline === null ? null : (
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] ${
+              watcherOnline && watcherAgeMs !== null && watcherAgeMs < 30_000
+                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                : watcherOnline
+                ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
+                : 'bg-red-500/10 border-red-500/20 text-red-400'
+            }`}>
+              <div className={`w-1.5 h-1.5 rounded-full ${
+                watcherOnline && watcherAgeMs !== null && watcherAgeMs < 30_000
+                  ? 'bg-emerald-400 animate-pulse'
+                  : watcherOnline
+                  ? 'bg-amber-400'
+                  : 'bg-red-400'
+              }`} />
+              <span>
+                {watcherOnline
+                  ? `Monitor · ${watcherAgeMs !== null && watcherAgeMs < 60_000 ? `${Math.round(watcherAgeMs / 1000)}s ago` : 'active'}`
+                  : 'Monitor offline'}
+              </span>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <button onClick={handleTogglePause} disabled={toggling}
