@@ -65,7 +65,15 @@ export interface Db {
   closePosition(id: string, exitPrice: number, pnl: number): Promise<void>;
   getAllOpenPositions(): Promise<PaperTrade[]>;
   upsertTokenPrice(token: string, price: number): Promise<void>;
-  // ── On-chain position tracking (for frontend fast reads) ─────────────────
+  // ── On-chain position tracking (for frontend fast reads + stop-loss) ────
+  getOpenOnChainPositions(): Promise<{
+    onChainPositionId: string;
+    follower: string;
+    leader:   string;
+    token:    string;
+    ausdcAllocated: number;
+    entryPrice:     number;
+  }[]>;
   findVaultByOnChainId(onChainVaultId: string): Promise<{ id: string; follower: string; leader: string } | null>;
   upsertOnChainPosition(data: {
     onChainPositionId: string;
@@ -274,6 +282,20 @@ export function createPrismaDb(): Db {
         update: { price },
         create: { token: token.toUpperCase(), price },
       });
+    },
+
+    async getOpenOnChainPositions() {
+      const rows = await prisma.position.findMany({
+        where: { status: 'OPEN', onChainPositionId: { not: null } },
+      });
+      return rows.map((r) => ({
+        onChainPositionId: r.onChainPositionId!,
+        follower:          r.follower,
+        leader:            r.leader,
+        token:             r.token,
+        ausdcAllocated:    Number(r.ausdcAllocated),
+        entryPrice:        Number(r.entryPrice),
+      }));
     },
 
     async findVaultByOnChainId(onChainVaultId) {

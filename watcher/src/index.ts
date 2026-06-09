@@ -20,7 +20,7 @@ const REQUIRED_VARS = [
   'UPSTASH_REDIS_REST_URL',
   'UPSTASH_REDIS_REST_TOKEN',
 ];
-const OPTIONAL_VARS = ['PORT', 'DEFAULT_COPY_PCT'];
+const OPTIONAL_VARS = ['PORT', 'DEFAULT_COPY_PCT', 'STOP_LOSS_PCT'];
 
 for (const key of REQUIRED_VARS) {
   const val = process.env[key];

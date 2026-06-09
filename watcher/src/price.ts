@@ -57,3 +57,15 @@ export async function getCurrentWsomiPrice(): Promise<number> {
   });
   return sqrtPriceX96ToWsomiUsd(state[0]);
 }
+
+// USDC.e/NIA pool — token0=USDC.e (6 dec), token1=NIA (18 dec)
+// NIA price in USDC.e = 1e12 / (sqrtP/2^96)^2
+export async function getCurrentNiaPrice(): Promise<number> {
+  const state = await httpClient.readContract({
+    address:      '0x89b6827843b884B862489C2FC526374D0F9F1c39' as `0x${string}`,
+    abi:          ALGEBRA_POOL_ABI,
+    functionName: 'globalState',
+  });
+  const raw = Number(state[0]) / 2 ** 96;
+  return 1e12 / (raw * raw);
+}
