@@ -294,14 +294,14 @@ export default function Home() {
       .then((r) => r.json())
       .then((d) => {
         if (d.trades?.length) {
-          // Float OPEN trades to top, then by most recent
-          const sorted = [...d.trades].sort((a: Trade, b: Trade) => {
+          setAllTrades(d.trades);
+          const executed = (d.trades as Trade[]).filter((t) => t.status !== 'SKIPPED');
+          const sorted = [...executed].sort((a, b) => {
             if (a.status === 'OPEN' && b.status !== 'OPEN') return -1;
             if (b.status === 'OPEN' && a.status !== 'OPEN') return 1;
             return new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime();
           });
           setRecentUserTrades(sorted.slice(0, 5));
-          setAllTrades(d.trades);
         }
       })
       .catch(() => {})
@@ -377,7 +377,7 @@ export default function Home() {
         <div className="flex flex-col gap-4 min-w-0 overflow-y-auto" style={{ scrollbarWidth: "none" }}>
 
           {/* Hero card */}
-          <div className="bg-card border border-border/80 rounded-2xl p-6 animate-fade-in-up stagger-1 hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring">
+          <div className="bg-card border border-border/80 rounded-2xl p-6 animate-fade-in-up stagger-1 transition-spring">
             <div className="flex items-center gap-3 mb-5">
               <div className="relative w-12 h-9 flex-shrink-0">
                 <img
@@ -547,7 +547,7 @@ export default function Home() {
         <div className="flex flex-col gap-6 min-w-0 overflow-y-auto" style={{ scrollbarWidth: "none" }}>
 
           {/* Portfolio Chart Card */}
-          <div className="bg-card border border-border/80 rounded-2xl p-5 hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring animate-scale-in">
+          <div className="bg-card border border-border/80 rounded-2xl p-5 transition-spring animate-scale-in">
             <div className="flex items-start justify-between mb-4">
               <div>
                 <p className="text-[11px] text-subtle uppercase tracking-wider mb-1">Portfolio Value</p>
@@ -572,7 +572,7 @@ export default function Home() {
           </div>
 
           {/* Top Traders — windowed */}
-          <div className="bg-card border border-border/80 rounded-2xl p-5 hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring animate-scale-in stagger-2">
+          <div className="bg-card border border-border/80 rounded-2xl p-5 transition-spring animate-scale-in stagger-2">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-[12px] font-semibold uppercase tracking-wider text-foreground">Top Traders</h3>
               {/* Time-window pill switcher */}
@@ -628,7 +628,7 @@ export default function Home() {
           </div>
 
           {/* Transaction History */}
-          <div className="bg-card border border-border/80 rounded-2xl p-5 hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring animate-scale-in stagger-3">
+          <div className="bg-card border border-border/80 rounded-2xl p-5 transition-spring animate-scale-in stagger-3">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-[12px] font-semibold uppercase tracking-wider text-foreground">Transaction History</h3>
               {authenticated && recentUserTrades.length > 0 && (

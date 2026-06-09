@@ -120,7 +120,7 @@ export default function TraderDetailsPage({ params }: PageProps) {
         
         {/* Left: Leader Info & Stats */}
         <div className="lg:col-span-5 space-y-4">
-          <div className="bg-card border border-border/80 rounded-2xl p-6 hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring animate-scale-in">
+          <div className="bg-card border border-border/80 rounded-2xl p-6 transition-spring animate-scale-in">
             <div className="flex items-center gap-3 mb-6">
               <Avatar address={leaderAddress} size={36} />
               <div>
@@ -222,7 +222,7 @@ export default function TraderDetailsPage({ params }: PageProps) {
         <div className="lg:col-span-7 space-y-4">
           
           {/* Action Trigger Card */}
-          <div className="bg-card border border-border/80 rounded-2xl p-6 hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring animate-fade-in-up">
+          <div className="bg-card border border-border/80 rounded-2xl p-6 transition-spring animate-fade-in-up">
             {isManaging ? (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">

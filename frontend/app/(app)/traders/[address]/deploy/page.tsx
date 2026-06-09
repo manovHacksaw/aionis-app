@@ -148,7 +148,7 @@ function CreateAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
   return (
     <div className="space-y-4">
       {isConnected && (
-        <div className="bg-card border border-border/80 rounded-2xl px-5 py-4 flex items-center justify-between hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring animate-scale-in">
+        <div className="bg-card border border-border/80 rounded-2xl px-5 py-4 flex items-center justify-between transition-spring animate-scale-in">
           <div>
             <p className="text-[10px] uppercase tracking-wider text-foreground/40 mb-1">aUSD Balance</p>
             <p className="text-[17px] font-light tabular-nums text-foreground">
@@ -418,7 +418,7 @@ export default function DeployAgentPage({ params }: PageProps) {
         
         {/* Left: Leader Stats Card */}
         <div className="lg:col-span-5 space-y-4">
-          <div className="bg-card border border-border/80 rounded-2xl p-6 hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring animate-scale-in">
+          <div className="bg-card border border-border/80 rounded-2xl p-6 transition-spring animate-scale-in">
             <div className="flex items-center gap-3 mb-6">
               <Avatar address={leaderAddress} size={36} />
               <div>

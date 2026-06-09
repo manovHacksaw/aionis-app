@@ -30,7 +30,7 @@ export default function FaucetPage() {
         </div>
 
         {/* aUSD */}
-        <div className="bg-card border border-border/80 rounded-2xl p-6 space-y-5 hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring">
+        <div className="bg-card border border-border/80 rounded-2xl p-6 space-y-5 transition-spring">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center flex-shrink-0">
@@ -86,7 +86,7 @@ export default function FaucetPage() {
         </div>
 
         {/* STT for gas */}
-        <div className="bg-card border border-border/80 rounded-2xl p-6 space-y-5 hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring">
+        <div className="bg-card border border-border/80 rounded-2xl p-6 space-y-5 transition-spring">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-surface border border-border flex items-center justify-center flex-shrink-0">
               <span className="text-muted text-[11px] font-semibold">STT</span>

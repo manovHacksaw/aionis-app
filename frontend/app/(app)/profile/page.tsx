@@ -71,7 +71,7 @@ function Spinner() {
 
 function StatCard({ label, value, valueClass = 'text-foreground', delayClass = '' }: { label: string; value: string; valueClass?: string; delayClass?: string }) {
   return (
-    <div className={`bg-card border border-border/80 rounded-2xl px-5 py-4 hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring hover:scale-[1.02] animate-fade-in-up ${delayClass}`}>
+    <div className={`bg-card border border-border/80 rounded-2xl px-5 py-4 transition-spring hover:scale-[1.02] animate-fade-in-up ${delayClass}`}>
       <p className="text-[11px] text-subtle uppercase tracking-wide mb-1.5">{label}</p>
       <p className={`text-[20px] font-light tabular-nums ${valueClass}`}>{value}</p>
     </div>
@@ -254,7 +254,7 @@ export default function ProfilePage() {
         <div className="space-y-6">
 
           {/* Identity card */}
-          <div className="bg-card border border-border/80 rounded-2xl p-6 flex flex-col sm:flex-row gap-6 animate-fade-in-up stagger-1 hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring">
+          <div className="bg-card border border-border/80 rounded-2xl p-6 flex flex-col sm:flex-row gap-6 animate-fade-in-up stagger-1 transition-spring">
             <div className="relative w-20 h-20 flex-shrink-0">
               {avatarUrl ? (
                 <img src={avatarUrl} alt="" className="w-20 h-20 rounded-full object-cover border border-border" />

@@ -58,7 +58,7 @@ export default function TradesPage() {
   const isConnected = authenticated && !!user?.wallet?.address;
   const address = user?.wallet?.address;
   const [trades, setTrades] = useState<Trade[]>([]);
-  const [filter, setFilter] = useState<'ALL' | 'OPEN' | 'CLOSED' | 'SKIPPED'>('ALL');
+  const [filter, setFilter] = useState<'ALL' | 'EXECUTED' | 'OPEN' | 'CLOSED' | 'SKIPPED'>('EXECUTED');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,6 +84,7 @@ export default function TradesPage() {
 
   const filteredTrades = trades.filter((t) => {
     if (filter === 'ALL') return true;
+    if (filter === 'EXECUTED') return t.status === 'OPEN' || t.status === 'CLOSED';
     return t.status === filter;
   });
 
@@ -103,7 +104,7 @@ export default function TradesPage() {
 
         {/* Filters Switcher */}
         <div className="flex bg-surface/80 border border-border/60 p-1 rounded-full w-fit">
-        {(['ALL', 'OPEN', 'CLOSED', 'SKIPPED'] as const).map((opt) => (
+        {(['EXECUTED', 'ALL', 'OPEN', 'CLOSED', 'SKIPPED'] as const).map((opt) => (
             <button
               key={opt}
               onClick={() => setFilter(opt)}
@@ -117,7 +118,7 @@ export default function TradesPage() {
                   : 'text-muted hover:text-foreground'
               }`}
             >
-              {opt === 'ALL' ? 'All' : opt.charAt(0) + opt.slice(1).toLowerCase()}
+              {opt === 'ALL' ? 'All' : opt === 'EXECUTED' ? 'Executed' : opt.charAt(0) + opt.slice(1).toLowerCase()}
             </button>
           ))}
         </div>

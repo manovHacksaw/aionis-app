@@ -241,7 +241,7 @@ function ManageAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
     <div className="space-y-4 animate-fade-in-up">
 
       {/* Status + toggle */}
-      <div className="bg-card border border-border/80 rounded-2xl px-5 py-4 flex items-center justify-between hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring">
+      <div className="bg-card border border-border/80 rounded-2xl px-5 py-4 flex items-center justify-between transition-spring">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2">
             <div className={`w-2 h-2 rounded-full ${vaultStatus === 'ACTIVE' ? 'bg-emerald-400' : 'bg-accent'}`} />
@@ -301,7 +301,7 @@ function ManageAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
       )}
 
       {/* Stats */}
-      <div className="bg-card border border-border/80 rounded-2xl p-5 grid grid-cols-3 gap-4 hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring">
+      <div className="bg-card border border-border/80 rounded-2xl p-5 grid grid-cols-3 gap-4 transition-spring">
         {[
           { label: 'Agent Capital',  value: `${fmtAUSD(lockedBalance)} aUSD`,  color: 'text-foreground' },
           { label: 'Unused Capital', value: `${fmtAUSD(freeBalance)} aUSD`,    color: 'text-foreground' },
@@ -315,7 +315,7 @@ function ManageAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
       </div>
 
       {/* Deposit */}
-      <form onSubmit={handleDeposit} className="bg-card border border-border/80 rounded-2xl p-5 space-y-3 hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring">
+      <form onSubmit={handleDeposit} className="bg-card border border-border/80 rounded-2xl p-5 space-y-3 transition-spring">
         <div className="flex justify-between items-center">
           <p className="text-[13px] text-foreground font-light">Add Capital to Agent</p>
           <span className="text-[11px] text-subtle">Available: {fmtAUSD(balance)} aUSD</span>
@@ -339,7 +339,7 @@ function ManageAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
       </form>
 
       {/* Withdraw */}
-      <div className="bg-card border border-border/80 rounded-2xl p-5 flex items-center justify-between gap-4 hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring">
+      <div className="bg-card border border-border/80 rounded-2xl p-5 flex items-center justify-between gap-4 transition-spring">
         <div>
           <p className="text-[13px] text-foreground font-light mb-0.5">Withdraw capital from Agent</p>
           <p className="text-[11px] text-subtle">
@@ -381,7 +381,7 @@ function ManageAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
       <AgentActivityLogs follower={address} leaderAddress={leaderAddress} />
 
       {/* Faucet */}
-      <div className="bg-card border border-border/80 rounded-2xl px-5 py-4 flex items-center justify-between hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring">
+      <div className="bg-card border border-border/80 rounded-2xl px-5 py-4 flex items-center justify-between transition-spring">
         <div>
           <p className="text-[10px] uppercase tracking-wider text-subtle mb-0.5">aUSD Balance</p>
           <p className="text-[15px] font-light tabular-nums text-foreground">
@@ -442,7 +442,7 @@ export default function ManageAgentPage({ params }: PageProps) {
         
         {/* Left: Leader Stats Card */}
         <div className="lg:col-span-5 space-y-4">
-          <div className="bg-card border border-border/80 rounded-2xl p-6 hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring animate-scale-in">
+          <div className="bg-card border border-border/80 rounded-2xl p-6 transition-spring animate-scale-in">
             <div className="flex items-center gap-3 mb-6">
               <Avatar address={leaderAddress} size={36} />
               <div>
@@ -499,7 +499,7 @@ export default function ManageAgentPage({ params }: PageProps) {
 
           {/* Vault-specific performance */}
           {stats?.vaultStats && (stats.vaultStats.closedCount > 0 || stats.vaultStats.openCount > 0) && (
-            <div className="bg-card border border-border/80 rounded-2xl p-5 hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring">
+            <div className="bg-card border border-border/80 rounded-2xl p-5 transition-spring">
               <p className="text-[10px] uppercase tracking-wider text-subtle mb-3">Your Agent vs This Leader</p>
               <div className="grid grid-cols-3 gap-4">
                 {[

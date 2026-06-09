@@ -142,7 +142,7 @@ export default function AgentsPage() {
               { label: 'Unrealized P&L',       value: `${summary.totalPnl >= 0 ? '+' : ''}${summary.totalPnl.toFixed(2)} aUSD`, color: summary.totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400' },
               { label: 'Active Agents',        value: `${summary.activeCount} / ${agents.length}`, color: 'text-foreground' },
             ].map((s, idx) => (
-              <div key={s.label} className="bg-surface border border-border rounded-2xl px-6 py-5 hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring hover:scale-[1.02] animate-fade-in-up" style={{ animationDelay: `${idx * 40}ms` }}>
+              <div key={s.label} className="bg-surface border border-border rounded-2xl px-6 py-5 transition-spring hover:scale-[1.02] animate-fade-in-up" style={{ animationDelay: `${idx * 40}ms` }}>
                 <p className="text-[11px] uppercase tracking-widest text-subtle mb-2">{s.label}</p>
                 <p className={`text-[22px] font-light tracking-tight tabular-nums ${s.color}`}>{s.value}</p>
               </div>
@@ -168,40 +168,24 @@ export default function AgentsPage() {
 
 function AgentCard({ agent }: { agent: Agent }) {
   const router = useRouter();
-  const { vaultStatus, pauseVault, resumeVault } = useVault(agent.leader as `0x${string}`);
-  const [toggling,  setToggling]  = useState(false);
-  const [toggleErr, setToggleErr] = useState<string | null>(null);
+  const { vaultStatus } = useVault(agent.leader as `0x${string}`);
 
-  // Prefer the live on-chain status; fall back to the API snapshot until it resolves
   const status = vaultStatus ?? agent.status;
-
-  async function handleToggle(e: React.MouseEvent) {
-    e.stopPropagation();
-    setToggling(true);
-    setToggleErr(null);
-    try {
-      if (status === 'ACTIVE') await pauseVault();
-      else await resumeVault();
-    } catch (err: any) {
-      setToggleErr(err?.shortMessage ?? err?.message ?? 'Failed');
-    }
-    setToggling(false);
-  }
 
   return (
     <div
       onClick={() => router.push(`/traders/${agent.leader}/manage`)}
-      className="bg-surface border border-border hover:border-accent/40 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-5 transition-spring hover:scale-[1.015] active:scale-99 hover:shadow-md hover:shadow-accent/5 cursor-pointer animate-fade-in-up"
+      className="bg-surface border border-border hover:border-foreground/20 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-5 transition-spring hover:scale-[1.01] active:scale-99 cursor-pointer animate-fade-in-up"
     >
       <div className="flex items-center gap-3 min-w-[180px]">
         <Avatar address={agent.leader} size={32} />
         <div>
           <a
-            href={`https://explorer.somnia.network/address/${agent.leader}`}
+            href={`https://testnet.somnia.exploreme.pro/address/${agent.leader}`}
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="font-mono text-[13px] text-foreground/90 hover:text-accent hover:underline decoration-accent/50 transition-colors block"
+            className="font-mono text-[13px] text-foreground/90 hover:text-foreground transition-colors block"
           >
             {fmt(agent.leader)}
           </a>
@@ -226,36 +210,14 @@ function AgentCard({ agent }: { agent: Agent }) {
         </div>
       </div>
 
-      <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-1.5 min-w-[64px]">
-          <div className={`w-1.5 h-1.5 rounded-full ${status === 'ACTIVE' ? 'bg-emerald-400' : 'bg-accent'}`} />
-          <span className={`text-[12px] ${status === 'ACTIVE' ? 'text-emerald-400' : 'text-accent'}`}>
-            {status}
-          </span>
-        </div>
-
-        {toggleErr && <span className="text-[11px] text-red-400 max-w-[140px] truncate" title={toggleErr}>{toggleErr}</span>}
-
-        {status !== 'CLOSED' && (
-          <button
-            onClick={handleToggle}
-            disabled={toggling}
-            className={`rounded-full border text-[12px] px-4 py-1.5 transition-spring hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-40 disabled:scale-100 ${
-              status === 'ACTIVE'
-                ? 'border-accent/40 text-accent hover:border-accent/70'
-                : 'border-emerald-500/40 text-emerald-400 hover:border-emerald-500/70'
-            }`}
-          >
-            {toggling ? '…' : status === 'ACTIVE' ? 'Pause' : 'Resume'}
-          </button>
-        )}
-
-        <button
-          onClick={(e) => { e.stopPropagation(); router.push(`/traders/${agent.leader}/manage`); }}
-          className="rounded-full border border-foreground/[0.15] text-foreground/80 text-[12px] px-4 py-1.5 hover:text-foreground hover:border-foreground/30 transition-spring hover:scale-105 active:scale-95 cursor-pointer"
-        >
-          Manage
-        </button>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <div className={`w-1.5 h-1.5 rounded-full ${status === 'ACTIVE' ? 'bg-emerald-400 animate-pulse' : 'bg-foreground/20'}`} />
+        <span className={`text-[12px] ${status === 'ACTIVE' ? 'text-emerald-400' : 'text-muted'}`}>
+          {status === 'ACTIVE' ? 'Active' : status === 'PAUSED' ? 'Paused' : 'Closed'}
+        </span>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-3.5 h-3.5 text-subtle ml-1">
+          <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+        </svg>
       </div>
     </div>
   );

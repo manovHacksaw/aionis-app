@@ -375,7 +375,7 @@ export default function PortfolioPage() {
               { label: 'Open Positions',      value: `${openPositionCount} across ${summary?.activeCount ?? 0} agents`,           color: 'text-foreground' },
               { label: 'Opened by Agents Today', value: openedToday !== null ? `${openedToday}` : '…', color: 'text-accent' },
             ].map((s, idx) => (
-              <div key={s.label} className="bg-surface border border-border rounded-2xl px-6 py-5 hover:border-accent/30 hover:shadow-md hover:shadow-accent/5 transition-spring hover:scale-[1.02] animate-fade-in-up" style={{ animationDelay: `${idx * 40}ms` }}>
+              <div key={s.label} className="bg-surface border border-border rounded-2xl px-6 py-5 transition-spring hover:scale-[1.02] animate-fade-in-up" style={{ animationDelay: `${idx * 40}ms` }}>
                 <p className="text-[11px] uppercase tracking-widest text-subtle mb-2">{s.label}</p>
                 <p className={`text-[22px] font-light tracking-tight tabular-nums ${s.color}`}>
                   {s.value ?? '…'}
