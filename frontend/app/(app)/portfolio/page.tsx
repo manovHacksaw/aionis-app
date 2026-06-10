@@ -596,7 +596,7 @@ function HoldingCard({ holding }: { holding: Holding }) {
         </div>
 
         <span className="text-right text-[13px] text-foreground/90 tabular-nums">
-          {holding.totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+          ${holding.totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
         </span>
         <span className="text-right text-[13px] text-muted tabular-nums">
           ${holding.weightedAvgEntry.toFixed(4)}
