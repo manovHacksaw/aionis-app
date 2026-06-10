@@ -327,7 +327,7 @@ export default function Home() {
                 </p>
               </div>
               <div className="flex -space-x-2 flex-shrink-0">
-                {['WSOMI', 'USDC', 'NIA', 'USDT'].map((sym) => (
+                {['WSOMI', 'USDC', 'AUSD', 'USDT'].map((sym) => (
                   <div key={sym} className="w-8 h-8 rounded-full border-2 border-card overflow-hidden">
                     <TokenLogo symbol={sym} />
                   </div>
