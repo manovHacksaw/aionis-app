@@ -358,7 +358,7 @@ export default function Home() {
                 },
                 {
                   l: "AI Decisions Today",
-                  v: platformStats ? platformStats.tradesEvaluatedToday.toString() : "…",
+                  v: platformStats ? (platformStats.tradesEvaluatedToday ?? 0).toString() : "…",
                   s: "leader trades evaluated",
                 },
               ].map(({ l, v, s }) => (
