@@ -169,6 +169,7 @@ const TokenLogo = ({ symbol }: { symbol: string }) => {
   let src = '';
   if (sym === 'WSOMI' || sym === 'SOMI') src = '/token-logos/WSOMI.png';
   else if (sym === 'USDC' || sym === 'USDC.E') src = '/token-logos/USDC.png';
+  else if (sym === 'AUSD') src = '/token-logos/aUSD.svg';
 
   if (src) {
     return (
@@ -184,8 +185,12 @@ const TokenLogo = ({ symbol }: { symbol: string }) => {
   }
 
   return (
-    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-surface to-border border border-border/60 flex items-center justify-center text-[10px] text-muted font-bold uppercase flex-shrink-0 select-none">
-      {symbol.slice(0, 2)}
+    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-surface to-border border border-border/60 flex items-center justify-center flex-shrink-0 select-none">
+      <svg className="w-3.5 h-3.5 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 8c-2 0-3 1-3 2s1 2 3 2 3 1 3 2-1 2-3 2" />
+        <path d="M12 6v12" />
+      </svg>
     </div>
   );
 };

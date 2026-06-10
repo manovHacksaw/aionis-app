@@ -91,7 +91,7 @@ Current page reads like a generic DeFi dashboard. Add a subtitle under the hero:
 ---
 
 ### Block 6 — Traders page: AI-generated leader inference (40 min)
-**Impact: Very high for "Innovation" criterion — Claude generating real on-chain analysis.**
+**Impact: Very high for "Innovation" criterion — Claude(use OpenAI, i have the key in env) generating real on-chain analysis.**
 
 **New file: `frontend/app/api/traders/[address]/inference/route.ts`**
 ```

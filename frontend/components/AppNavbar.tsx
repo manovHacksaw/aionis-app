@@ -90,6 +90,14 @@ export default function AppNavbar() {
   const pathname = usePathname();
   const [isVisible, setIsVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
+  const [watcherOnline, setWatcherOnline] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch('/api/watcher/status')
+      .then((r) => r.json())
+      .then((d) => setWatcherOnline(!!d.online))
+      .catch(() => setWatcherOnline(false));
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -175,6 +183,19 @@ export default function AppNavbar() {
 
         {/* Right Area: Control Panel (Notifications, Theme, Profile) */}
         <div className="flex items-center gap-6">
+          {watcherOnline !== null && (
+            <Link
+              href="/watcher"
+              title="View watcher activity"
+              className={`flex items-center gap-1.5 text-[11px] transition-colors hover:opacity-80 ${
+                watcherOnline ? 'text-emerald-400' : 'text-red-400'
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${watcherOnline ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`} />
+              <span className="hidden sm:inline">{watcherOnline ? 'Agent Network: Live' : 'Agent Network: Offline'}</span>
+            </Link>
+          )}
+
           <NotificationBell />
 
           <ThemeToggle />
