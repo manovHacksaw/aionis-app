@@ -12,6 +12,10 @@ const DEFAULT_LIMITS: VaultLimits = {
   slippageBps: 100, minLeaderTradeUsd: 0, maxLeaderTradeUsd: 0, minAllocUsd: 0, maxAllocUsd: 0,
 };
 
+// Mirrors VaultManager.MIN_COPY_SCORE — the strategist's score must be at
+// least this high (out of 100) for a trade to be copied.
+const MIN_COPY_SCORE = 10;
+
 // Renders only the bounds the follower actually configured — omitting "no limit"
 // fields keeps the LLM prompt natural instead of cluttered with zeros.
 function describeLimits(limits: VaultLimits): string {
@@ -84,6 +88,7 @@ Examples of tone and copy style:
 - "Skipped: token not in allowlist — the leader bought NIA, which is currently deselected in your agent's settings."
 - "Skipped: insufficient balance — the calculated minimum allocation was $15.00, but your agent only has $4.20 in free capital."
 - "Skipped: the leader's $3.20 trade fell below your $5.00 minimum trade size — too small to be worth copying."
+- "Skipped: the AI strategist scored this $5.50 WSOMI buy only 6/100 — below the 10/100 minimum — flagging it as a small, low-conviction top-up that doesn't look like a meaningful directional bet worth mirroring at your risk level."
 
 Write only the final sentence. Do not include any quotes, formatting, prefix, or explanation.`;
 
@@ -172,6 +177,10 @@ function describeSkipReason(reason: string, attempt: any, limits: VaultLimits): 
   const tradeValue = attempt.usdValue !== null ? `$${attempt.usdValue.toFixed(2)}` : "the leader's trade";
 
   switch (reason) {
+    case 'score below threshold':
+      return attempt.score !== null
+        ? `the AI strategist rated this trade ${attempt.score}/100 — below the ${MIN_COPY_SCORE}/100 minimum needed to copy it, judging it too risky or low-conviction relative to the leader's typical moves`
+        : `the AI strategist scored this trade too low to copy, judging it too risky relative to the leader's typical moves`;
     case 'slippage exceeded':
       return `the price drifted beyond your ${(limits.slippageBps / 100).toFixed(2)}% slippage tolerance`;
     case 'leader trade below minimum':
