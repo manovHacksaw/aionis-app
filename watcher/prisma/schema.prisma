@@ -103,6 +103,7 @@ model Position {
   txHashOpen        String?    @map("tx_hash_open")
   txHashClose       String?    @map("tx_hash_close")
   closeReason       String?    @map("close_reason")
+  latencyMs         Int?       @map("latency_ms")
   vault             UserVault  @relation(fields: [vaultId], references: [id])
 
   @@index([follower, status])

@@ -160,10 +160,36 @@ export async function GET(
 
   // ── Fast path: read positions from DB (populated by vault-listener in watcher) ──
 
-  const [dbPositions, tokenPrices] = await Promise.all([
+  const leaders = vaults.map((v) => v.leader.toLowerCase());
+
+  const [dbPositions, tokenPrices, closedPositions, lastActivityRows] = await Promise.all([
     prisma.position.findMany({ where: { follower, status: 'OPEN' } }),
     prisma.tokenPrice.findMany(),
+    prisma.position.findMany({
+      where:   { follower, leader: { in: leaders }, status: 'CLOSED' },
+      orderBy: { closedAt: 'asc' },
+      select:  { leader: true, pnl: true, closedAt: true },
+    }),
+    prisma.leaderSwap.groupBy({
+      by:    ['leader'],
+      where: { leader: { in: leaders } },
+      _max:  { timestamp: true },
+    }),
   ]);
+
+  const lastActivityByLeader = new Map<string, string>();
+  for (const row of lastActivityRows) {
+    if (row._max.timestamp) lastActivityByLeader.set(row.leader.toLowerCase(), row._max.timestamp.toISOString());
+  }
+
+  // Build a cumulative realized-P&L sparkline per leader (closed positions only)
+  const sparklineByLeader = new Map<string, number[]>();
+  for (const p of closedPositions) {
+    const key = p.leader.toLowerCase();
+    const series = sparklineByLeader.get(key) ?? [0];
+    series.push(series[series.length - 1] + Number(p.pnl ?? 0));
+    sparklineByLeader.set(key, series);
+  }
 
   // Build price map from DB; stablecoins are always $1
   const priceByToken: Record<string, number> = { USDC: 1.0, USDT: 1.0 };
@@ -224,11 +250,17 @@ export async function GET(
     const vaultPnl   = positions.reduce((s: number, p: any) => s + p.unrealizedPnl, 0);
     totalPnl        += vaultPnl;
 
+    const leaderKey = vault.leader.toLowerCase();
+    const sparkline = sparklineByLeader.get(leaderKey) ?? [0];
+    const fullSparkline = [...sparkline, sparkline[sparkline.length - 1] + vaultPnl];
+
     return {
       ...vault,
       ausdcLocked:   locked,
       positions,
       unrealizedPnl: +vaultPnl.toFixed(6),
+      sparkline:     fullSparkline.map((n) => +n.toFixed(6)),
+      lastLeaderActivity: lastActivityByLeader.get(leaderKey) ?? null,
     };
   });
 

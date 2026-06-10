@@ -24,6 +24,8 @@ type Trade = {
   txHashClose: string | null;
 };
 
+type SortKey = 'token' | 'leader' | 'ausdcAllocated' | 'entryPrice' | 'exitPrice' | 'pnl' | 'openedAt';
+
 const fmt = (addr: string) => `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 
 const TokenLogo = ({ symbol }: { symbol: string }) => {
@@ -32,6 +34,7 @@ const TokenLogo = ({ symbol }: { symbol: string }) => {
   if (sym === 'WSOMI' || sym === 'SOMI') src = '/token-logos/WSOMI.png';
   else if (sym === 'USDC' || sym === 'USDC.E') src = '/token-logos/USDC.png';
   else if (sym === 'AUSD') src = '/token-logos/aUSD.svg';
+  else if (sym === 'USDT') src = '/token-logos/USDT.svg';
 
   if (src) {
     return (
@@ -57,6 +60,29 @@ const TokenLogo = ({ symbol }: { symbol: string }) => {
   );
 };
 
+const SortableHeader = ({
+  label, sortKey, current, dir, onClick, align = 'left',
+}: {
+  label: string;
+  sortKey: SortKey;
+  current: SortKey;
+  dir: 'asc' | 'desc';
+  onClick: (key: SortKey) => void;
+  align?: 'left' | 'right';
+}) => (
+  <th
+    className={`py-4 px-6 font-medium cursor-pointer select-none hover:text-foreground transition-colors ${align === 'right' ? 'text-right' : 'text-left'}`}
+    onClick={() => onClick(sortKey)}
+  >
+    <span className={`inline-flex items-center gap-1 ${align === 'right' ? 'flex-row-reverse' : ''}`}>
+      {label}
+      <span className={`text-[9px] ${current === sortKey ? 'opacity-100' : 'opacity-0'}`}>
+        {dir === 'asc' ? '▲' : '▼'}
+      </span>
+    </span>
+  </th>
+);
+
 export default function TradesPage() {
   const router = useRouter();
   const { authenticated, user } = usePrivy();
@@ -66,6 +92,17 @@ export default function TradesPage() {
   const [filter, setFilter] = useState<'ALL' | 'EXECUTED' | 'OPEN' | 'CLOSED' | 'SKIPPED'>('EXECUTED');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>('openedAt');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('desc');
+    }
+  };
 
   useEffect(() => {
     if (!address) return;
@@ -91,6 +128,25 @@ export default function TradesPage() {
     if (filter === 'ALL') return true;
     if (filter === 'EXECUTED') return t.status === 'OPEN' || t.status === 'CLOSED';
     return t.status === filter;
+  });
+
+  const sortedTrades = [...filteredTrades].sort((a, b) => {
+    let cmp = 0;
+    switch (sortKey) {
+      case 'token':
+      case 'leader':
+        cmp = a[sortKey].localeCompare(b[sortKey]);
+        break;
+      case 'openedAt':
+        cmp = new Date(a.openedAt ?? 0).getTime() - new Date(b.openedAt ?? 0).getTime();
+        break;
+      case 'exitPrice':
+        cmp = (a.exitPrice ?? 0) - (b.exitPrice ?? 0);
+        break;
+      default:
+        cmp = a[sortKey] - b[sortKey];
+    }
+    return sortDir === 'asc' ? cmp : -cmp;
   });
 
   const openCount    = trades.filter(t => t.status === 'OPEN').length;
@@ -174,7 +230,7 @@ export default function TradesPage() {
 
       {isConnected && !loading && !error && (
         <div className="overflow-hidden">
-          {filteredTrades.length === 0 ? (
+          {sortedTrades.length === 0 ? (
             <div className="py-24 text-center border border-border/50 rounded-2xl bg-card/50">
               <p className="text-subtle text-[14px] mb-1">No trades found matching this filter.</p>
               <p className="text-subtle text-[13px] mb-8">Follow a leader to execute trades on-chain.</p>
@@ -191,22 +247,27 @@ export default function TradesPage() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b border-border text-subtle text-[11px] uppercase tracking-wider bg-background/40">
-                      <th className="py-4 px-6 font-medium">Asset</th>
-                      <th className="py-4 px-6 font-medium">Leader</th>
-                      <th className="py-4 px-6 font-medium text-right">Size</th>
-                      <th className="py-4 px-6 font-medium text-right">Entry Price</th>
-                      <th className="py-4 px-6 font-medium text-right">Exit Price</th>
-                      <th className="py-4 px-6 font-medium text-right">P&L</th>
+                      <SortableHeader label="Asset" sortKey="token" current={sortKey} dir={sortDir} onClick={toggleSort} />
+                      <SortableHeader label="Leader" sortKey="leader" current={sortKey} dir={sortDir} onClick={toggleSort} />
+                      <SortableHeader label="Size" sortKey="ausdcAllocated" current={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
+                      <SortableHeader label="Entry Price" sortKey="entryPrice" current={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
+                      <SortableHeader label="Exit Price" sortKey="exitPrice" current={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
+                      <SortableHeader label="P&L" sortKey="pnl" current={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
                       <th className="py-4 px-6 font-medium text-center">Status</th>
-                      <th className="py-4 px-6 font-medium text-right">Date</th>
-                      <th className="py-4 px-6 font-medium text-center">Links</th>
+                      <SortableHeader label="Date" sortKey="openedAt" current={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
+                      <th className="py-4 px-6 font-medium text-center">Details</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60 text-[13px]">
-                    {filteredTrades.map((trade, idx) => {
+                    {sortedTrades.map((trade, idx) => {
                       const isProfit = trade.pnl >= 0;
                       return (
-                        <tr key={trade.id} className="hover:bg-surface/30 hover:text-foreground transition-spring hover:translate-x-0.5 animate-fade-in-up" style={{ animationDelay: `${(idx % 15) * 35}ms` }}>
+                        <tr
+                          key={trade.id}
+                          onClick={() => router.push(`/trades/${trade.id}`)}
+                          className="cursor-pointer hover:bg-surface/30 hover:text-foreground transition-spring hover:translate-x-0.5 animate-fade-in-up"
+                          style={{ animationDelay: `${(idx % 15) * 35}ms` }}
+                        >
                           {/* Asset */}
                           <td className="py-4 px-6 font-medium flex items-center gap-2.5">
                             <TokenLogo symbol={trade.token} />
@@ -299,39 +360,11 @@ export default function TradesPage() {
                               })
                             ) : '—'}
                           </td>
-                          {/* Links */}
+                          {/* Details */}
                           <td className="py-4 px-6 text-center font-medium">
-                            <div className="flex items-center justify-center gap-3">
-                              {trade.txHashOpen && (
-                                <a
-                                  href={`https://testnet.somnia.exploreme.pro/tx/${trade.txHashOpen}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-subtle hover:text-foreground transition-colors"
-                                  title="Kickoff/Open Tx"
-                                >
-                                  Open ↗
-                                </a>
-                              )}
-                              {trade.txHashClose && (
-                                <a
-                                  href={`https://testnet.somnia.exploreme.pro/tx/${trade.txHashClose}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-subtle hover:text-foreground transition-colors"
-                                  title="Close Tx"
-                                >
-                                  Close ↗
-                                </a>
-                              )}
-                              <a
-                                href={`/traders/${trade.leader}/manage`}
-                                className="text-accent/60 hover:text-accent transition-colors text-[11px]"
-                                title="View full agent reasoning for this leader"
-                              >
-                                Agent log →
-                              </a>
-                            </div>
+                            <span className="text-accent/60 hover:text-accent transition-colors text-[11px]">
+                              View →
+                            </span>
                           </td>
                         </tr>
                       );

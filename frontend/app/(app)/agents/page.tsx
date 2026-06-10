@@ -14,6 +14,8 @@ type Agent = {
   riskLevel:     number;
   status:        string;
   unrealizedPnl: number;
+  sparkline?:    number[];
+  lastLeaderActivity?: string | null;
 };
 
 type Summary = { totalLocked: number; totalPnl: number; activeCount: number };
@@ -27,6 +29,45 @@ const RiskDots = ({ level }: { level: number }) => (
     ))}
   </div>
 );
+
+const Sparkline = ({ data }: { data: number[] }) => {
+  if (data.length < 2) return null;
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+  const w = 64, h = 24;
+  const points = data
+    .map((v, i) => {
+      const x = (i / (data.length - 1)) * w;
+      const y = h - ((v - min) / range) * h;
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
+    })
+    .join(' ');
+  const isUp = data[data.length - 1] >= data[0];
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="flex-shrink-0">
+      <polyline
+        points={points}
+        fill="none"
+        stroke={isUp ? '#34d399' : '#f87171'}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+};
+
+const timeAgo = (iso: string) => {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  return `${Math.floor(hr / 24)}d ago`;
+};
 
 export default function AgentsPage() {
   const router = useRouter();
@@ -189,9 +230,18 @@ function AgentCard({ agent }: { agent: Agent }) {
           >
             {fmt(agent.leader)}
           </a>
-          <p className="text-[10px] text-subtle uppercase tracking-wide mt-0.5">Following</p>
+          <p className="text-[10px] text-subtle uppercase tracking-wide mt-0.5">
+            Following
+            {agent.lastLeaderActivity && (
+              <span className="text-foreground/30"> · last trade {timeAgo(agent.lastLeaderActivity)}</span>
+            )}
+          </p>
         </div>
       </div>
+
+      {agent.sparkline && agent.sparkline.length > 1 && (
+        <Sparkline data={agent.sparkline} />
+      )}
 
       <div className="grid grid-cols-3 gap-6 flex-grow max-w-sm">
         <div>

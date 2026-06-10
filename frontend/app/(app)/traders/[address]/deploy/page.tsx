@@ -26,6 +26,7 @@ const TokenLogo = ({ symbol }: { symbol: string }) => {
   if (sym === 'WSOMI' || sym === 'SOMI') src = '/token-logos/WSOMI.png';
   else if (sym === 'USDC.E' || sym === 'USDC') src = '/token-logos/USDC.png';
   else if (sym === 'AUSD') src = '/token-logos/aUSD.svg';
+  else if (sym === 'USDT') src = '/token-logos/USDT.svg';
 
   if (src) {
     return (
@@ -79,8 +80,9 @@ function CreateAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
   const router = useRouter();
   const { login } = usePrivy();
   const { address, isConnected } = useAccount();
-  const { balance, canFaucet, cooldownSeconds, faucetPending, claimFaucet } = useAUSD();
-  const { createVault: createAgent, createPending } = useVault(leaderAddress);
+  const { balance, canFaucet, cooldownSeconds, faucetPending, claimFaucet, hasEnoughAllowance } = useAUSD();
+  const { createVault: createAgent, reopenVault: reopenAgent, vaultStatus, keeperSet, createPending } = useVault(leaderAddress);
+  const isReopen = vaultStatus === 'CLOSED';
 
   const [selected, setSelected] = useState<Record<string, boolean>>({
     [MAINNET_TOKENS['WSOMI']]:  true,
@@ -92,6 +94,7 @@ function CreateAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
   const [riskLevel,  setRiskLevel]  = useState(3);
   const [submitting, setSubmitting] = useState(false);
   const [submitErr,  setSubmitErr]  = useState<string | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   // Advanced Trade Limits — empty USD inputs map to 0 ("no limit") on submit
   const [showAdvanced,    setShowAdvanced]    = useState(false);
@@ -122,13 +125,20 @@ function CreateAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
 
   const canSubmit = parsedAmount > 0 && parsedAmount <= balance && selectedTokens.length > 0 && isConnected && limitsValid;
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
+    setSubmitErr(null);
+    setShowConfirm(true);
+  }
+
+  async function handleConfirmDeploy() {
+    setShowConfirm(false);
     setSubmitting(true);
     setSubmitErr(null);
     try {
-      await createAgent({
+      const deployFn = isReopen ? reopenAgent : createAgent;
+      await deployFn({
         amountHuman:    parsedAmount,
         riskLevel,
         maxPerTradePct: RISK_MAX_PCT[riskLevel],
@@ -200,21 +210,34 @@ function CreateAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
           )}
         </div>
 
-        <div className="space-y-3">
-          <label className="text-[12px] text-foreground/60 block">Risk Level</label>
-          <div className="flex gap-2">
-            {[1,2,3,4,5].map((level) => (
-              <button type="button" key={level} onClick={() => setRiskLevel(level)}
-                className={`flex-1 py-2.5 rounded-xl border text-[13px] font-light transition-spring hover:scale-105 active:scale-95 cursor-pointer ${
-                  riskLevel === level
-                    ? 'bg-accent/20 border-accent/50 text-accent'
-                    : 'bg-foreground/[0.03] border-foreground/10 text-foreground/50 hover:border-foreground/20 hover:text-foreground'
-                }`}>
-                {level}
-              </button>
-            ))}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-3">
+            <label className="text-[12px] text-foreground/60 block">Risk Level</label>
+            <div className="flex gap-2">
+              {[1,2,3,4,5].map((level) => (
+                <button type="button" key={level} onClick={() => setRiskLevel(level)}
+                  className={`flex-1 py-2.5 rounded-xl border text-[13px] font-light transition-spring hover:scale-105 active:scale-95 cursor-pointer ${
+                    riskLevel === level
+                      ? 'bg-accent/20 border-accent/50 text-accent'
+                      : 'bg-foreground/[0.03] border-foreground/10 text-foreground/50 hover:border-foreground/20 hover:text-foreground'
+                  }`}>
+                  {level}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-accent/80">{RISK_DESCRIPTIONS[riskLevel]}</p>
           </div>
-          <p className="text-[11px] text-accent/80">{RISK_DESCRIPTIONS[riskLevel]}</p>
+
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <label className="text-[12px] text-foreground/60">Stop-Loss — Max Loss %</label>
+              <span className="text-[12px] text-foreground/30 font-mono">{stopLossPct}%</span>
+            </div>
+            <input type="range" min="5" max="50" step="5" value={stopLossPct}
+              onChange={(e) => setStopLossPct(parseInt(e.target.value))}
+              className="w-full accent-accent cursor-pointer" />
+            <p className="text-[11px] text-foreground/30">Auto-close a position when its drawdown exceeds this threshold. Your agent acts autonomously to limit losses.</p>
+          </div>
         </div>
 
         <div className="border border-foreground/10 rounded-xl overflow-hidden">
@@ -274,17 +297,6 @@ function CreateAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
                     className="bg-foreground/[0.03] border border-border rounded-xl px-4 py-2.5 text-[13px] text-foreground focus:outline-none focus:border-foreground/30 transition-all font-mono" />
                 </div>
                 {!allocRangeValid && <p className="text-[11px] text-red-400">Min must be less than or equal to max</p>}
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <label className="text-[12px] text-foreground/60">Max Loss %</label>
-                  <span className="text-[12px] text-foreground/30 font-mono">{stopLossPct}%</span>
-                </div>
-                <input type="range" min="5" max="50" step="5" value={stopLossPct}
-                  onChange={(e) => setStopLossPct(parseInt(e.target.value))}
-                  className="w-full accent-accent cursor-pointer" />
-                <p className="text-[11px] text-foreground/30">Auto-close a position when its drawdown exceeds this threshold. Your agent acts autonomously to limit losses.</p>
               </div>
             </div>
           )}
@@ -372,7 +384,7 @@ function CreateAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
                 ? 'bg-accent text-accent-foreground hover:bg-accent-hover'
                 : 'bg-foreground/10 text-foreground/30 cursor-not-allowed'
             }`}>
-            {submitting || createPending ? 'Confirm in wallet…' : 'Deploy Agent'}
+            {submitting || createPending ? 'Confirm in wallet…' : isReopen ? 'Redeploy Agent' : 'Deploy Agent'}
           </button>
         ) : (
           <button type="button" onClick={login}
@@ -385,6 +397,75 @@ function CreateAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
           Your capital is non-custodial. aUSD is locked in your personal agent contract on Somnia (chain 50312). The keeper is authorized only to open and close positions — it cannot withdraw your funds.
         </p>
       </form>
+
+      {showConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowConfirm(false)} />
+          <div className="relative bg-card border border-border/80 rounded-2xl p-6 w-full max-w-md space-y-5 animate-scale-in">
+            {(() => {
+              const needsApprove = !hasEnoughAllowance(parsedAmount);
+              const needsKeeper  = !keeperSet;
+              const steps: { title: string; desc: string }[] = [];
+              if (needsApprove) {
+                steps.push({
+                  title: 'Approve aUSD',
+                  desc: `Allow the vault contract to pull up to ${parsedAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })} aUSD from your wallet.`,
+                });
+              }
+              steps.push({
+                title: isReopen ? 'Reopen Agent Vault' : 'Create Agent Vault',
+                desc: isReopen
+                  ? `Reopens your previously closed vault, locks ${parsedAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })} aUSD, and saves your updated strategy settings on-chain.`
+                  : `Deploys your personal vault contract, locks ${parsedAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })} aUSD, and saves your strategy settings on-chain.`,
+              });
+              if (needsKeeper) {
+                steps.push({
+                  title: 'Authorize Keeper',
+                  desc: 'Grants the automated keeper permission to open and close trades for this vault on your behalf — it cannot withdraw funds.',
+                });
+              }
+
+              return (
+                <>
+                  <div>
+                    <h3 className="text-[17px] font-light tracking-tight text-foreground mb-1">
+                      {isReopen ? 'Confirm Redeployment' : 'Confirm Deployment'}
+                    </h3>
+                    <p className="text-[12px] text-foreground/40">
+                      {isReopen ? 'Redeploying' : 'Deploying'} this agent requires {steps.length} transaction{steps.length === 1 ? '' : 's'} from your wallet — approve each in sequence.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    {steps.map((step, i) => (
+                      <div key={step.title} className="flex items-start gap-3">
+                        <div className="w-6 h-6 rounded-full bg-foreground/[0.06] border border-foreground/10 flex items-center justify-center text-[11px] text-foreground/60 flex-shrink-0">
+                          {i + 1}
+                        </div>
+                        <div>
+                          <p className="text-[13px] text-foreground/90">{step.title}</p>
+                          <p className="text-[11px] text-foreground/40">{step.desc}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
+
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={() => setShowConfirm(false)}
+                className="flex-1 rounded-full border border-foreground/[0.18] text-foreground/70 text-[13px] font-light py-2.5 hover:bg-foreground/[0.05] hover:text-foreground transition-spring hover:scale-[1.01] active:scale-[0.99] cursor-pointer">
+                Cancel
+              </button>
+              <button type="button" onClick={handleConfirmDeploy}
+                className="flex-1 rounded-full bg-accent text-accent-foreground text-[13px] font-light py-2.5 hover:bg-accent-hover transition-spring hover:scale-[1.01] active:scale-[0.99] cursor-pointer">
+                {isReopen ? 'Confirm & Redeploy' : 'Confirm & Deploy'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -419,72 +500,67 @@ export default function DeployAgentPage({ params }: PageProps) {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        
-        {/* Left: Leader Stats Card */}
-        <div className="lg:col-span-5 space-y-4">
-          <div className="bg-card border border-border/80 rounded-2xl p-6 transition-spring animate-scale-in">
-            <div className="flex items-center gap-3 mb-6">
-              <Avatar address={leaderAddress} size={36} />
-              <div>
-                <div className="text-[10px] text-foreground/30 uppercase tracking-wide">Copying Leader</div>
-                <div className="font-mono text-sm tracking-tight text-foreground/90 mt-0.5">
-                  {fmt(leaderAddress)}
-                </div>
+      {/* Top: Leader summary — full width */}
+      <div className="bg-card border border-border/80 rounded-2xl p-6 mb-8 transition-spring animate-scale-in">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-6">
+          <div className="flex items-center gap-3 lg:flex-shrink-0">
+            <Avatar address={leaderAddress} size={36} />
+            <div>
+              <div className="text-[10px] text-foreground/30 uppercase tracking-wide">Copying Leader</div>
+              <div className="font-mono text-sm tracking-tight text-foreground/90 mt-0.5">
+                {fmt(leaderAddress)}
               </div>
             </div>
+          </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              {[
-                {
-                  label: '24h Volume',
-                  value: statsErr ? '—' : stats ? volFmt : (
-                    <div className="h-6 w-16 bg-surface/40 rounded animate-shimmer mt-0.5" />
-                  )
-                },
-                {
-                  label: '24h Trades',
-                  value: statsErr ? '—' : stats ? String(stats.stats24h.trades) : (
-                    <div className="h-6 w-10 bg-surface/40 rounded animate-shimmer mt-0.5" />
-                  )
-                },
-                {
-                  label: 'Buy %',
-                  value: statsErr ? '—' : stats ? `${buyPct}%` : (
-                    <div className="h-6 w-12 bg-surface/40 rounded animate-shimmer mt-0.5" />
-                  ),
-                  color: !stats ? '' : buyPct >= 50 ? 'text-emerald-400' : 'text-red-400'
-                },
-                {
-                  label: 'Followers',
-                  value: statsErr ? '—' : stats ? String(stats.followerCount) : (
-                    <div className="h-6 w-8 bg-surface/40 rounded animate-shimmer mt-0.5" />
-                  )
-                },
-                {
-                  label: 'Total Profits Copy-Traded',
-                  value: statsErr ? '—' : stats ? profitFmt : (
-                    <div className="h-6 w-24 bg-surface/40 rounded animate-shimmer mt-0.5" />
-                  ),
-                  color: !stats ? '' : profitYielded >= 0 ? 'text-emerald-400' : 'text-red-400',
-                  fullWidth: true
-                },
-              ].map(({ label, value, color, fullWidth }) => (
-                <div key={label} className={fullWidth ? 'col-span-2 border-t border-foreground/[0.03] pt-3 mt-1' : ''}>
-                  <div className="text-[10px] uppercase tracking-wider text-foreground/40 mb-1">{label}</div>
-                  <div className={`text-md font-light tabular-nums ${color ?? 'text-foreground'}`}>{value}</div>
-                </div>
-              ))}
-            </div>
+          <div className="hidden lg:block w-px self-stretch bg-foreground/[0.06]" />
+
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 flex-1">
+            {[
+              {
+                label: '24h Volume',
+                value: statsErr ? '—' : stats ? volFmt : (
+                  <div className="h-6 w-16 bg-surface/40 rounded animate-shimmer mt-0.5" />
+                )
+              },
+              {
+                label: '24h Trades',
+                value: statsErr ? '—' : stats ? String(stats.stats24h.trades) : (
+                  <div className="h-6 w-10 bg-surface/40 rounded animate-shimmer mt-0.5" />
+                )
+              },
+              {
+                label: 'Buy %',
+                value: statsErr ? '—' : stats ? `${buyPct}%` : (
+                  <div className="h-6 w-12 bg-surface/40 rounded animate-shimmer mt-0.5" />
+                ),
+                color: !stats ? '' : buyPct >= 50 ? 'text-emerald-400' : 'text-red-400'
+              },
+              {
+                label: 'Followers',
+                value: statsErr ? '—' : stats ? String(stats.followerCount) : (
+                  <div className="h-6 w-8 bg-surface/40 rounded animate-shimmer mt-0.5" />
+                )
+              },
+              {
+                label: 'Total Profits Copy-Traded',
+                value: statsErr ? '—' : stats ? profitFmt : (
+                  <div className="h-6 w-24 bg-surface/40 rounded animate-shimmer mt-0.5" />
+                ),
+                color: !stats ? '' : profitYielded >= 0 ? 'text-emerald-400' : 'text-red-400',
+              },
+            ].map(({ label, value, color }) => (
+              <div key={label}>
+                <div className="text-[10px] uppercase tracking-wider text-foreground/40 mb-1">{label}</div>
+                <div className={`text-md font-light tabular-nums ${color ?? 'text-foreground'}`}>{value}</div>
+              </div>
+            ))}
           </div>
         </div>
-
-        {/* Right: Deploy Agent form */}
-        <div className="lg:col-span-7">
-          <CreateAgent leaderAddress={leaderAddress} />
-        </div>
-
       </div>
+
+      {/* Below: Deploy Agent form — full width */}
+      <CreateAgent leaderAddress={leaderAddress} />
     </div>
   );
 }

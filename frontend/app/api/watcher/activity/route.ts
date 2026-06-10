@@ -40,6 +40,36 @@ export async function GET() {
     prisma.userVault.findMany({ select: { onChainVaultId: true, follower: true, leader: true } }),
   ]);
 
+  // Extract unique follower & leader addresses to fetch profiles
+  const addresses = new Set<string>();
+  openedRecent.forEach((p) => {
+    addresses.add(p.follower.toLowerCase());
+    addresses.add(p.leader.toLowerCase());
+  });
+  closedRecent.forEach((p) => {
+    addresses.add(p.follower.toLowerCase());
+    addresses.add(p.leader.toLowerCase());
+  });
+  vaults.forEach((v) => {
+    addresses.add(v.follower.toLowerCase());
+    addresses.add(v.leader.toLowerCase());
+  });
+
+  const profiles = await prisma.followerProfile.findMany({
+    where: { follower: { in: Array.from(addresses) } },
+    select: { follower: true, email: true },
+  });
+
+  const profileMap: Record<string, string> = {};
+  for (const p of profiles) {
+    if (p.email && p.email.includes('@')) {
+      const handle = p.email.split('@')[0];
+      if (handle) {
+        profileMap[p.follower.toLowerCase()] = handle;
+      }
+    }
+  }
+
   const events: WatcherEvent[] = [];
 
   for (const p of openedRecent) {
@@ -116,7 +146,7 @@ export async function GET() {
   }
 
   events.sort((a, b) => new Date(b.happenedAt).getTime() - new Date(a.happenedAt).getTime());
-  const result = { events: events.slice(0, 40) };
+  const result = { events: events.slice(0, 40), profiles: profileMap };
 
   try { await redis.set(CACHE_KEY, result, { ex: 15 }); } catch { /* non-fatal */ }
   return NextResponse.json(result);

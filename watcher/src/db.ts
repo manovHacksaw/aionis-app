@@ -87,6 +87,7 @@ export interface Db {
     status:            'OPEN';
     openedAt:          Date;
     txHashOpen?:       string;
+    latencyMs?:        number;
   }): Promise<void>;
   closeOnChainPosition(data: {
     onChainPositionId: string;
@@ -327,6 +328,7 @@ export function createPrismaDb(): Db {
           onChainPositionId: data.onChainPositionId,
           openedAt:          data.openedAt,
           txHashOpen:        data.txHashOpen,
+          latencyMs:         data.latencyMs,
         },
       });
     },

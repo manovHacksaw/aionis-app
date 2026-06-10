@@ -24,6 +24,7 @@ export async function GET(
     closedCount,
     winnersCount,
     recentSwaps,
+    swapsLast24h,
   ] = await Promise.all([
     prisma.position.findMany({
       where:   { leader: address },
@@ -64,6 +65,10 @@ export async function GET(
       orderBy: { timestamp: 'desc' },
       take: 20,
     }),
+    prisma.leaderSwap.findMany({
+      where:  { leader: address, timestamp: { gte: since24h } },
+      select: { timestamp: true },
+    }),
   ]);
 
   // Vault-specific stats when a follower address is provided (manage page)
@@ -72,26 +77,38 @@ export async function GET(
     winRate: number | null;
     totalPnl: number;
     openCount: number;
+    avgLatencyMs: number | null;
   } | null = null;
 
   if (followerParam) {
-    const [vClosed, vWins, vOpen, vPnlAgg] = await Promise.all([
+    const [vClosed, vWins, vOpen, vPnlAgg, vLatencyAgg] = await Promise.all([
       prisma.position.count({ where: { leader: address, follower: followerParam, status: 'CLOSED' } }),
       prisma.position.count({ where: { leader: address, follower: followerParam, status: 'CLOSED', pnl: { gt: 0 } } }),
       prisma.position.count({ where: { leader: address, follower: followerParam, status: 'OPEN' } }),
       prisma.position.aggregate({ where: { leader: address, follower: followerParam, status: 'CLOSED' }, _sum: { pnl: true } }),
+      prisma.position.aggregate({ where: { leader: address, follower: followerParam, latencyMs: { not: null } }, _avg: { latencyMs: true } }),
     ]);
     vaultStats = {
       closedCount: vClosed,
       winRate: vClosed > 0 ? Math.round((vWins / vClosed) * 100) : null,
       totalPnl: Number(vPnlAgg._sum.pnl ?? 0),
       openCount: vOpen,
+      avgLatencyMs: vLatencyAgg._avg.latencyMs !== null ? Math.round(vLatencyAgg._avg.latencyMs) : null,
     };
   }
 
   const buys  = swapSides.find((s) => s.side === 'BUY')?._count.id  ?? 0;
   const sells = swapSides.find((s) => s.side === 'SELL')?._count.id ?? 0;
   const totalProfitYielded = Number(pnlSum._sum.pnl ?? 0);
+
+  // 24-cell activity heatmap: index 0 = 23h ago, index 23 = current hour
+  const activityHeatmap = new Array(24).fill(0);
+  const now = Date.now();
+  for (const { timestamp } of swapsLast24h) {
+    const hoursAgo = Math.floor((now - timestamp.getTime()) / (60 * 60 * 1000));
+    const idx = 23 - hoursAgo;
+    if (idx >= 0 && idx < 24) activityHeatmap[idx]++;
+  }
 
   return NextResponse.json({
     address,
@@ -107,6 +124,7 @@ export async function GET(
       buys,
       sells,
     },
+    activityHeatmap,
     lastSeen: lastSwap?.timestamp ?? null,
     recentTrades: copiedPositions.map((t) => ({
       id:             t.id,

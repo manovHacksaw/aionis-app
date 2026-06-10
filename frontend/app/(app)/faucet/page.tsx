@@ -3,6 +3,7 @@
 import { useAccount } from 'wagmi';
 import { usePrivy }   from '@privy-io/react-auth';
 import { useAUSD }    from '@/hooks/useAUSD';
+import ConnectButton  from '@/components/ConnectButton';
 
 function fmt(n: number) {
   return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -17,7 +18,7 @@ const COMPARISON_ROWS = [
 
 export default function FaucetPage() {
   const { isConnected } = useAccount();
-  const { login }       = usePrivy();
+  const { authenticated, login } = usePrivy();
   const {
     balance, canFaucet, cooldownSeconds, faucetPending, claimFaucet,
   } = useAUSD();
@@ -92,7 +93,7 @@ export default function FaucetPage() {
                   <p className="text-subtle text-[11px]">Aionis test dollar · 6 decimals</p>
                 </div>
               </div>
-              {isConnected && (
+              {authenticated && (
                 <div className="text-right">
                   <p className="text-[10px] text-subtle uppercase tracking-wide mb-0.5">Balance</p>
                   <p className="text-foreground font-light tabular-nums text-[14px]">{fmt(balance)}</p>
@@ -109,7 +110,7 @@ export default function FaucetPage() {
                 <span className="text-subtle">Cooldown</span>
                 <span className="text-foreground">24 hours</span>
               </div>
-              {isConnected && !canFaucet && (
+              {authenticated && !canFaucet && (
                 <div className="flex justify-between text-[12px]">
                   <span className="text-subtle">Next claim in</span>
                   <span className="text-accent">{cooldownLabel}</span>
@@ -117,7 +118,7 @@ export default function FaucetPage() {
               )}
             </div>
 
-            {isConnected ? (
+            {authenticated ? (
               <button
                 onClick={() => claimFaucet().catch(() => {})}
                 disabled={!canFaucet || faucetPending}
@@ -129,19 +130,23 @@ export default function FaucetPage() {
                 {faucetPending ? 'Claiming…' : canFaucet ? 'Claim 10,000 aUSD' : `Available in ${cooldownLabel}`}
               </button>
             ) : (
-              <button onClick={login}
-                className="w-full rounded-full border border-foreground/[0.18] bg-foreground/[0.03] text-foreground/90 text-[14px] font-light py-3 hover:bg-foreground/[0.08] hover:border-foreground/40 transition-spring hover:scale-[1.02] active:scale-[0.98] cursor-pointer">
-                Connect Wallet
-              </button>
+              <div className="flex flex-col items-center gap-3 pt-1">
+                <div className="flex items-center gap-2 text-subtle text-[12px]">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  </svg>
+                  Connect wallet to claim
+                </div>
+                <ConnectButton fullWidth />
+              </div>
             )}
           </div>
 
           {/* STT for gas */}
           <div className="bg-card border border-border/80 rounded-2xl p-6 space-y-5 transition-spring animate-fade-in-up">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-surface border border-border flex items-center justify-center flex-shrink-0">
-                <span className="text-muted text-[11px] font-semibold">STT</span>
-              </div>
+              <img src="/token-logos/WSOMI.png" alt="STT" className="w-9 h-9 rounded-full object-cover border border-border bg-surface flex-shrink-0" />
               <div>
                 <p className="text-foreground text-[14px] font-light">STT</p>
                 <p className="text-subtle text-[11px]">Somnia Testnet gas token</p>

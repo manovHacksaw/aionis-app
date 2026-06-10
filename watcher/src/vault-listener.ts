@@ -45,6 +45,15 @@ async function handleLog(logEntry: any, db: Db): Promise<void> {
 
     const symbol = ADDRESS_TO_SYMBOL[(token as string).toLowerCase()] ?? (token as string);
 
+    // Latency = time between the leader's source trade and our position open
+    let latencyMs: number | undefined;
+    try {
+      const lastSwap = await db.getLatestLeaderSwap(vault.leader);
+      if (lastSwap && lastSwap.timestamp <= openedAt.getTime()) {
+        latencyMs = openedAt.getTime() - lastSwap.timestamp;
+      }
+    } catch { /* non-critical */ }
+
     await db.upsertOnChainPosition({
       onChainPositionId: (positionId as string).toLowerCase(),
       follower:          vault.follower,
@@ -56,6 +65,7 @@ async function handleLog(logEntry: any, db: Db): Promise<void> {
       status:            'OPEN',
       openedAt,
       txHashOpen:        transactionHash,
+      latencyMs,
     });
 
     log(

@@ -89,8 +89,8 @@ export default function TradersPage() {
       {/* Header */}
       <div className="mb-10 flex flex-col md:flex-row md:items-end md:justify-between gap-6">
         <div>
-          <h1 className="text-[28px] font-light tracking-[-0.04em] text-foreground mb-1">Discover</h1>
-          <p className="text-[14px] text-muted font-normal">On-chain activity on Somnia mainnet.</p>
+          <h1 className="text-[28px] font-light tracking-[-0.04em] text-foreground mb-1">Traders</h1>
+          <p className="text-[14px] text-muted font-normal">Select a trader, deploy an agent, and start copy-trading on Somnia.</p>
         </div>
 
         <div className="flex flex-wrap gap-2">

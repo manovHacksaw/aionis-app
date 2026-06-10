@@ -249,6 +249,98 @@ export function useVault(leaderAddress?: `0x${string}`) {
     return hash;
   }
 
+  // Reopen a previously-withdrawn (CLOSED) vault for this leader with a fresh deposit/config.
+  async function reopenVault({
+    amountHuman,
+    riskLevel,
+    maxPerTradePct,
+    tokens,
+    limits,
+  }: {
+    amountHuman:    number;
+    riskLevel:      number;
+    maxPerTradePct: number;
+    tokens:         `0x${string}`[];
+    limits: {
+      slippageBps:       number;
+      minLeaderTradeUsd: number;
+      maxLeaderTradeUsd: number;
+      minAllocUsd:       number;
+      maxAllocUsd:       number;
+      stopLossPct:       number;
+    };
+  }) {
+    if (!follower || !leaderAddress) throw new Error('wallet not connected');
+
+    // Step 1: approve if needed — wait for receipt before reopenVault
+    if (!hasEnoughAllowance(amountHuman)) {
+      const approveHash = await approve(amountHuman);
+      await publicClient!.waitForTransactionReceipt({ hash: approveHash });
+      refetchAUSD();
+    }
+
+    const onChainLimits = {
+      slippageBps:       limits.slippageBps,
+      minLeaderTradeUsd: parseUnits(limits.minLeaderTradeUsd.toString(), DECIMALS),
+      maxLeaderTradeUsd: parseUnits(limits.maxLeaderTradeUsd.toString(), DECIMALS),
+      minAllocUsd:       parseUnits(limits.minAllocUsd.toString(), DECIMALS),
+      maxAllocUsd:       parseUnits(limits.maxAllocUsd.toString(), DECIMALS),
+    };
+
+    // Step 2: reopen the vault on-chain
+    const hash = await writeContractAsync({
+      address:      VAULT_MANAGER,
+      abi:          VAULT_ABI.abi,
+      functionName: 'reopenVault',
+      args: [
+        leaderAddress,
+        parseUnits(amountHuman.toString(), DECIMALS),
+        riskLevel,
+        maxPerTradePct,
+        tokens,
+        onChainLimits,
+      ],
+    });
+    setCreateTxHash(hash);
+
+    // Step 3: wait for confirmation, then ensure keeper is still authorized
+    await publicClient!.waitForTransactionReceipt({ hash });
+    if (KEEPER_ADDRESS && KEEPER_ADDRESS !== '0x' && !keeperSet) {
+      try {
+        await writeContractAsync({
+          address:      VAULT_MANAGER,
+          abi:          VAULT_ABI.abi,
+          functionName: 'setKeeper',
+          args:         [KEEPER_ADDRESS],
+        });
+        refetchKeeper();
+      } catch (e) {
+        console.warn('[useVault] setKeeper failed:', e);
+      }
+    }
+
+    // Step 4: persist to DB — keepalive so navigation doesn't cancel the request
+    fetch('/api/vaults', {
+      method:   'POST',
+      keepalive: true,
+      headers:  { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        follower,
+        leader:         leaderAddress,
+        ausdLocked:     amountHuman,
+        riskLevel,
+        maxPerTradePct,
+        allowlist:      tokens,
+        onChainVaultId: vaultId,
+        ...limits,
+      }),
+    }).catch(console.error);
+
+    refetchAUSD();
+    refetchVault();
+    return hash;
+  }
+
   async function setKeeperManually() {
     if (!KEEPER_ADDRESS || KEEPER_ADDRESS === '0x') throw new Error('no keeper address configured');
     const hash = await writeContractAsync({
@@ -354,6 +446,7 @@ export function useVault(leaderAddress?: `0x${string}`) {
     withdrawPending,
     closePending,
     createVault,
+    reopenVault,
     setKeeperManually,
     deposit,
     withdraw,

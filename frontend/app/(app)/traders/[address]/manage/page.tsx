@@ -18,10 +18,11 @@ type LeaderStats = {
   winRate:           number | null;
   closedPositions:   number;
   vaultStats?: {
-    closedCount: number;
-    winRate:     number | null;
-    totalPnl:    number;
-    openCount:   number;
+    closedCount:  number;
+    winRate:      number | null;
+    totalPnl:     number;
+    openCount:    number;
+    avgLatencyMs: number | null;
   } | null;
 };
 
@@ -178,6 +179,7 @@ function ManageAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
   const [keeperErr,    setKeeperErr]    = useState<string | null>(null);
   const [closingId,    setClosingId]    = useState<string | null>(null);
   const [toggling,     setToggling]     = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [watcherOnline, setWatcherOnline] = useState<boolean | null>(null);
   const [watcherAgeMs,  setWatcherAgeMs]  = useState<number | null>(null);
   const watcherRef = useRef(false);
@@ -211,6 +213,7 @@ function ManageAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
   }
 
   async function handleWithdraw() {
+    setShowCloseConfirm(false);
     setWithdrawErr(null);
     try { await withdraw(); }
     catch (err: any) { setWithdrawErr(err?.shortMessage ?? err?.message ?? 'Withdraw failed'); }
@@ -238,7 +241,8 @@ function ManageAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
   }
 
   return (
-    <div className="space-y-4 animate-fade-in-up">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in-up">
+    <div className="lg:col-span-5 space-y-4">
 
       {/* Status + toggle */}
       <div className="bg-card border border-border/80 rounded-2xl px-5 py-4 flex items-center justify-between transition-spring">
@@ -314,6 +318,10 @@ function ManageAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
         ))}
       </div>
 
+    </div>
+
+    <div className="lg:col-span-7 space-y-4">
+
       {/* Deposit */}
       <form onSubmit={handleDeposit} className="bg-card border border-border/80 rounded-2xl p-5 space-y-3 transition-spring">
         <div className="flex justify-between items-center">
@@ -338,23 +346,49 @@ function ManageAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
         </button>
       </form>
 
-      {/* Withdraw */}
+      {/* Withdraw & Close */}
       <div className="bg-card border border-border/80 rounded-2xl p-5 flex items-center justify-between gap-4 transition-spring">
         <div>
-          <p className="text-[13px] text-foreground font-light mb-0.5">Withdraw capital from Agent</p>
+          <p className="text-[13px] text-foreground font-light mb-0.5">Withdraw &amp; Close Vault</p>
           <p className="text-[11px] text-subtle">
             {(openPositionIds?.length ?? 0) > 0
               ? 'Close all positions first'
-              : `Free balance: ${fmtAUSD(freeBalance)} aUSD`}
+              : `Withdraws your full free balance (${fmtAUSD(freeBalance)} aUSD) and permanently closes this agent vault.`}
           </p>
           {withdrawErr && <p className="text-[11px] text-red-400 mt-1">{withdrawErr}</p>}
         </div>
-        <button onClick={handleWithdraw}
+        <button onClick={() => setShowCloseConfirm(true)}
           disabled={(openPositionIds?.length ?? 0) > 0 || (freeBalance ?? 0) <= 0 || withdrawPending}
           className="rounded-full border border-foreground/[0.18] text-foreground/80 text-[12px] px-5 py-2 hover:text-foreground hover:border-foreground/30 transition-spring hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed whitespace-nowrap disabled:scale-100">
-          {withdrawPending ? 'Confirm…' : 'Withdraw Capital'}
+          {withdrawPending ? 'Confirm…' : 'Withdraw & Close'}
         </button>
       </div>
+
+      {showCloseConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowCloseConfirm(false)} />
+          <div className="relative bg-card border border-border/80 rounded-2xl p-6 w-full max-w-md space-y-4 animate-scale-in">
+            <div>
+              <h3 className="text-[17px] font-light tracking-tight text-foreground mb-1">Close this agent vault?</h3>
+              <p className="text-[12px] text-foreground/40">
+                This withdraws your full free balance ({fmtAUSD(freeBalance)} aUSD) back to your wallet and permanently
+                closes this vault — its status becomes <span className="text-foreground/70">CLOSED</span>. To copy-trade
+                this leader again later, you&apos;ll need to deploy a new agent with a fresh deposit.
+              </p>
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={() => setShowCloseConfirm(false)}
+                className="flex-1 rounded-full border border-foreground/[0.18] text-foreground/70 text-[13px] font-light py-2.5 hover:bg-foreground/[0.05] hover:text-foreground transition-spring hover:scale-[1.01] active:scale-[0.99] cursor-pointer">
+                Cancel
+              </button>
+              <button type="button" onClick={handleWithdraw}
+                className="flex-1 rounded-full bg-accent text-accent-foreground text-[13px] font-light py-2.5 hover:bg-accent-hover transition-spring hover:scale-[1.01] active:scale-[0.99] cursor-pointer">
+                Withdraw & Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Active Positions */}
       {(openPositionIds?.length ?? 0) > 0 && (
@@ -394,6 +428,7 @@ function ManageAgent({ leaderAddress }: { leaderAddress: `0x${string}` }) {
         </button>
       </div>
 
+    </div>
     </div>
   );
 }
@@ -438,104 +473,108 @@ export default function ManageAgentPage({ params }: PageProps) {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        
-        {/* Left: Leader Stats Card */}
-        <div className="lg:col-span-5 space-y-4">
-          <div className="bg-card border border-border/80 rounded-2xl p-6 transition-spring animate-scale-in">
-            <div className="flex items-center gap-3 mb-6">
-              <Avatar address={leaderAddress} size={36} />
-              <div>
-                <div className="text-[10px] text-foreground/30 uppercase tracking-wide">Copying Leader</div>
-                <div className="font-mono text-sm tracking-tight text-foreground/90 mt-0.5">
-                  {fmt(leaderAddress)}
-                </div>
+      <div className="space-y-6">
+
+        {/* Leader summary bar */}
+        <div className="bg-card border border-border/80 rounded-2xl p-6 flex flex-col lg:flex-row lg:items-center gap-6 transition-spring animate-scale-in">
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <Avatar address={leaderAddress} size={36} />
+            <div>
+              <div className="text-[10px] text-foreground/30 uppercase tracking-wide">Copying Leader</div>
+              <div className="font-mono text-sm tracking-tight text-foreground/90 mt-0.5">
+                {fmt(leaderAddress)}
               </div>
             </div>
+          </div>
 
-            <div className="grid grid-cols-2 gap-4">
+          <div className="hidden lg:block w-px self-stretch bg-border/60" />
+
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 flex-1">
+            {[
+              {
+                label: '24h Volume',
+                value: statsErr ? '—' : stats ? volFmt : (
+                  <div className="h-6 w-16 bg-surface/40 rounded animate-shimmer mt-0.5" />
+                )
+              },
+              {
+                label: '24h Trades',
+                value: statsErr ? '—' : stats ? String(stats.stats24h.trades) : (
+                  <div className="h-6 w-10 bg-surface/40 rounded animate-shimmer mt-0.5" />
+                )
+              },
+              {
+                label: 'Buy %',
+                value: statsErr ? '—' : stats ? `${buyPct}%` : (
+                  <div className="h-6 w-12 bg-surface/40 rounded animate-shimmer mt-0.5" />
+                ),
+                color: !stats ? '' : buyPct >= 50 ? 'text-emerald-400' : 'text-red-400'
+              },
+              {
+                label: 'Followers',
+                value: statsErr ? '—' : stats ? String(stats.followerCount) : (
+                  <div className="h-6 w-8 bg-surface/40 rounded animate-shimmer mt-0.5" />
+                )
+              },
+              {
+                label: 'Total Profits Copy-Traded',
+                value: statsErr ? '—' : stats ? profitFmt : (
+                  <div className="h-6 w-24 bg-surface/40 rounded animate-shimmer mt-0.5" />
+                ),
+                color: !stats ? '' : profitYielded >= 0 ? 'text-emerald-400' : 'text-red-400',
+              },
+            ].map(({ label, value, color }) => (
+              <div key={label}>
+                <div className="text-[10px] uppercase tracking-wider text-foreground/40 mb-1">{label}</div>
+                <div className={`text-md font-light tabular-nums ${color ?? 'text-foreground'}`}>{value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Vault-specific performance */}
+        {stats?.vaultStats && (stats.vaultStats.closedCount > 0 || stats.vaultStats.openCount > 0) && (
+          <div className="bg-card border border-border/80 rounded-2xl p-5 transition-spring">
+            <p className="text-[10px] uppercase tracking-wider text-subtle mb-3">Your Agent vs This Leader</p>
+            <div className={`grid gap-4 ${stats.vaultStats.avgLatencyMs !== null ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'}`}>
               {[
                 {
-                  label: '24h Volume',
-                  value: statsErr ? '—' : stats ? volFmt : (
-                    <div className="h-6 w-16 bg-surface/40 rounded animate-shimmer mt-0.5" />
-                  )
+                  label: 'Realized P&L',
+                  value: `${stats.vaultStats.totalPnl >= 0 ? '+' : ''}${stats.vaultStats.totalPnl.toFixed(2)} aUSD`,
+                  color: stats.vaultStats.totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400',
                 },
                 {
-                  label: '24h Trades',
-                  value: statsErr ? '—' : stats ? String(stats.stats24h.trades) : (
-                    <div className="h-6 w-10 bg-surface/40 rounded animate-shimmer mt-0.5" />
-                  )
+                  label: 'Win Rate',
+                  value: stats.vaultStats.winRate !== null ? `${stats.vaultStats.winRate}%` : '—',
+                  color: stats.vaultStats.winRate === null ? 'text-subtle'
+                    : stats.vaultStats.winRate >= 50 ? 'text-emerald-400'
+                    : stats.vaultStats.winRate >= 30 ? 'text-amber-400'
+                    : 'text-red-400',
                 },
                 {
-                  label: 'Buy %',
-                  value: statsErr ? '—' : stats ? `${buyPct}%` : (
-                    <div className="h-6 w-12 bg-surface/40 rounded animate-shimmer mt-0.5" />
-                  ),
-                  color: !stats ? '' : buyPct >= 50 ? 'text-emerald-400' : 'text-red-400'
+                  label: 'Positions',
+                  value: String(stats.vaultStats.closedCount + stats.vaultStats.openCount),
+                  color: 'text-foreground',
                 },
-                {
-                  label: 'Followers',
-                  value: statsErr ? '—' : stats ? String(stats.followerCount) : (
-                    <div className="h-6 w-8 bg-surface/40 rounded animate-shimmer mt-0.5" />
-                  )
-                },
-                {
-                  label: 'Total Profits Copy-Traded',
-                  value: statsErr ? '—' : stats ? profitFmt : (
-                    <div className="h-6 w-24 bg-surface/40 rounded animate-shimmer mt-0.5" />
-                  ),
-                  color: !stats ? '' : profitYielded >= 0 ? 'text-emerald-400' : 'text-red-400',
-                  fullWidth: true
-                },
-              ].map(({ label, value, color, fullWidth }) => (
-                <div key={label} className={fullWidth ? 'col-span-2 border-t border-foreground/[0.03] pt-3 mt-1' : ''}>
-                  <div className="text-[10px] uppercase tracking-wider text-foreground/40 mb-1">{label}</div>
-                  <div className={`text-md font-light tabular-nums ${color ?? 'text-foreground'}`}>{value}</div>
+                ...(stats.vaultStats.avgLatencyMs !== null ? [{
+                  label: 'Avg Execution Lag',
+                  value: stats.vaultStats.avgLatencyMs < 1000
+                    ? `${stats.vaultStats.avgLatencyMs}ms`
+                    : `${(stats.vaultStats.avgLatencyMs / 1000).toFixed(1)}s`,
+                  color: 'text-foreground',
+                }] : []),
+              ].map(({ label, value, color }) => (
+                <div key={label}>
+                  <p className="text-[10px] uppercase tracking-wider text-foreground/40 mb-1">{label}</p>
+                  <p className={`text-[15px] font-light tabular-nums ${color}`}>{value}</p>
                 </div>
               ))}
             </div>
           </div>
+        )}
 
-          {/* Vault-specific performance */}
-          {stats?.vaultStats && (stats.vaultStats.closedCount > 0 || stats.vaultStats.openCount > 0) && (
-            <div className="bg-card border border-border/80 rounded-2xl p-5 transition-spring">
-              <p className="text-[10px] uppercase tracking-wider text-subtle mb-3">Your Agent vs This Leader</p>
-              <div className="grid grid-cols-3 gap-4">
-                {[
-                  {
-                    label: 'Realized P&L',
-                    value: `${stats.vaultStats.totalPnl >= 0 ? '+' : ''}${stats.vaultStats.totalPnl.toFixed(2)} aUSD`,
-                    color: stats.vaultStats.totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400',
-                  },
-                  {
-                    label: 'Win Rate',
-                    value: stats.vaultStats.winRate !== null ? `${stats.vaultStats.winRate}%` : '—',
-                    color: stats.vaultStats.winRate === null ? 'text-subtle'
-                      : stats.vaultStats.winRate >= 50 ? 'text-emerald-400'
-                      : stats.vaultStats.winRate >= 30 ? 'text-amber-400'
-                      : 'text-red-400',
-                  },
-                  {
-                    label: 'Positions',
-                    value: String(stats.vaultStats.closedCount + stats.vaultStats.openCount),
-                    color: 'text-foreground',
-                  },
-                ].map(({ label, value, color }) => (
-                  <div key={label}>
-                    <p className="text-[10px] uppercase tracking-wider text-foreground/40 mb-1">{label}</p>
-                    <p className={`text-[15px] font-light tabular-nums ${color}`}>{value}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Right: Manage Agent Settings */}
-        <div className="lg:col-span-7">
-          <ManageAgent leaderAddress={leaderAddress} />
-        </div>
+        {/* Manage Agent Settings */}
+        <ManageAgent leaderAddress={leaderAddress} />
 
       </div>
     </div>

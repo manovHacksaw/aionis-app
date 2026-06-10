@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
 import ConnectButton from '@/components/ConnectButton';
 import Avatar from '@/components/Avatar';
+import { useAUSD } from '@/hooks/useAUSD';
 
 type Position = {
   id:             string;
@@ -85,6 +86,7 @@ const TokenBadge = ({ token, size = 36 }: { token: string; size?: number }) => {
   if (sym === 'WSOMI' || sym === 'SOMI') src = '/token-logos/WSOMI.png';
   else if (sym === 'USDC' || sym === 'USDC.E') src = '/token-logos/USDC.png';
   else if (sym === 'AUSD') src = '/token-logos/aUSD.svg';
+  else if (sym === 'USDT') src = '/token-logos/USDT.svg';
 
   if (src) {
     return (
@@ -122,6 +124,44 @@ const TokenBadge = ({ token, size = 36 }: { token: string; size?: number }) => {
     </div>
   );
 };
+
+function PortfolioChart({ points }: { points: [number, number][] }) {
+  if (points.length === 0) return null;
+  const w = 320, h = 90;
+  const xs = points.map(p => p[0]);
+  const ys = points.map(p => p[1]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  
+  let minY = Math.min(...ys);
+  let maxY = Math.max(...ys);
+
+  // Zoom the Y-axis to the data's own range so small fluctuations are visible,
+  // with a small padding; fall back to a tiny fixed window if values are identical.
+  const diff = maxY - minY;
+  const avg = (minY + maxY) / 2;
+  const padding = diff > 0 ? diff * 0.15 : Math.max(Math.abs(avg) * 0.0005, 0.01);
+  minY -= padding;
+  maxY += padding;
+
+  const px = (x: number) => ((x - minX) / (maxX - minX || 1)) * (w - 12) + 6;
+  const py = (y: number) => h - 6 - ((y - minY) / (maxY - minY || 1)) * (h - 16);
+  
+  const d = points.map(([x, y], i) => `${i === 0 ? "M" : "L"}${px(x).toFixed(1)},${py(y).toFixed(1)}`).join(" ");
+  const fd = `${d} L${px(maxX).toFixed(1)},${h} L${px(minX).toFixed(1)},${h} Z`;
+  
+  return (
+    <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} fill="none" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="pg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#22c55e" stopOpacity="0.22" />
+          <stop offset="100%" stopColor="#22c55e" stopOpacity="0.00" />
+        </linearGradient>
+      </defs>
+      <path d={fd} fill="url(#pg)" />
+      <path d={d} stroke="#22c55e" strokeWidth="2" fill="none" strokeLinejoin="round" pathLength="1" className="animate-draw-path" />
+    </svg>
+  );
+}
 
 function aggregateHoldings(agents: Agent[]): Holding[] {
   const byToken = new Map<string, Position[]>();
@@ -255,6 +295,7 @@ export default function PortfolioPage() {
   const { authenticated, user } = usePrivy();
   const isConnected = authenticated && !!user?.wallet?.address;
   const address = user?.wallet?.address;
+  const { balance } = useAUSD();
 
   const [agents,       setAgents]       = useState<Agent[]>([]);
   const [summary,      setSummary]      = useState<Summary | null>(null);
@@ -262,6 +303,7 @@ export default function PortfolioPage() {
   const [error,        setError]        = useState<string | null>(null);
   const [activityData, setActivityData] = useState<ActivityData | null>(null);
   const [refreshTick,  setRefreshTick]  = useState(0);
+  const [allTrades,    setAllTrades]    = useState<any[]>([]);
   const hasFetched = useRef(false);
 
   // Clear stale data and reset initial-load flag when address changes
@@ -270,6 +312,7 @@ export default function PortfolioPage() {
     setAgents([]);
     setSummary(null);
     setActivityData(null);
+    setAllTrades([]);
     setError(null);
   }, [address]);
 
@@ -302,18 +345,81 @@ export default function PortfolioPage() {
       .catch(() => {});
   }, [address, refreshTick]);
 
-  const holdings = useMemo(() => aggregateHoldings(agents), [agents]);
-  const openPositionCount = holdings.reduce((sum, h) => sum + h.byAgent.reduce((s, a) => s + a.positionCount, 0), 0);
-  const totalValue = holdings.reduce((sum, h) => sum + h.totalValue, 0);
-  const totalPnl   = holdings.reduce((sum, h) => sum + h.pnlUsd, 0);
+  useEffect(() => {
+    if (!address) return;
+    fetch(`/api/trades?address=${address}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.trades?.length) {
+          setAllTrades(d.trades);
+        }
+      })
+      .catch(() => {});
+  }, [address, refreshTick]);
 
-  const openedToday = activityData?.stats.openedToday ?? null;
+  const holdings = useMemo(() => aggregateHoldings(agents), [agents]);
+
+  const totalLocked = summary?.totalLocked ?? 0;
+  const portfolioPnl = summary?.totalPnl ?? 0;
+  const walletBalance = balance ? Number(balance) : 0;
+  const netWorth = totalLocked + portfolioPnl + walletBalance;
+  const pnlPct = totalLocked > 0 ? (portfolioPnl / totalLocked) * 100 : 0;
+
+  const chartPoints = useMemo(() => {
+    const closedTrades = allTrades
+      .filter((t) => t.status === 'CLOSED' && t.closedAt)
+      .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
+
+    const displayValue = netWorth > 0 ? netWorth : (balance ? Number(balance) : 10000);
+    const totalRealizedPnl = closedTrades.reduce((sum, t) => sum + (t.pnl ?? 0), 0);
+    const baseline = displayValue - totalRealizedPnl - portfolioPnl;
+
+    const now = Date.now();
+    let startTime = now - 24 * 60 * 60 * 1000; // default 24h ago
+    
+    const allValidTrades = allTrades.filter(t => t.openedAt);
+    if (allValidTrades.length > 0) {
+      const firstTradeTime = Math.min(...allValidTrades.map(t => new Date(t.openedAt!).getTime()));
+      startTime = Math.min(firstTradeTime - 24 * 60 * 60 * 1000, now - 24 * 60 * 60 * 1000);
+    }
+
+    const steps = 30;
+    const points: [number, number][] = [];
+    
+    for (let i = 0; i < steps; i++) {
+      const t = startTime + (i / (steps - 1)) * (now - startTime);
+      
+      let pnlAtT = 0;
+      for (const trade of allTrades) {
+        if (!trade.openedAt) continue;
+        const openTime = new Date(trade.openedAt).getTime();
+        const closeTime = trade.closedAt ? new Date(trade.closedAt).getTime() : now;
+        const finalPnl = trade.pnl ?? 0;
+        
+        if (t >= openTime) {
+          if (t >= closeTime) {
+            pnlAtT += finalPnl;
+          } else {
+            const duration = closeTime - openTime;
+            const elapsed = t - openTime;
+            const pct = duration > 0 ? elapsed / duration : 1;
+            pnlAtT += finalPnl * pct;
+          }
+        }
+      }
+      
+      points.push([t, baseline + pnlAtT]);
+    }
+
+    return points;
+  }, [allTrades, netWorth, portfolioPnl, balance]);
 
   return (
     <div className="text-foreground px-[7.5%] py-8 w-full select-none">
-      <div className="mb-10">
-        <h1 className="text-[28px] font-light tracking-[-0.04em] text-foreground mb-1">Portfolio</h1>
-        <p className="text-[14px] text-muted font-normal">Your token holdings and agent activity, across all agents.</p>
+      
+      {/* Header */}
+      <div className="border-b border-border/60 pb-3 mb-6">
+        <h1 className="text-[15px] font-semibold text-foreground">Portfolio</h1>
       </div>
 
       {!isConnected && (
@@ -368,81 +474,100 @@ export default function PortfolioPage() {
         <div className="py-24 text-center text-red-500/60 text-[14px]">{error}</div>
       )}
 
-      {isConnected && !loading && !error && holdings.length === 0 && (
-        <div className="space-y-8">
-          <div className="py-16 text-center border border-border/50 rounded-2xl">
-            <p className="text-subtle text-[14px] mb-1">No open positions yet.</p>
-            <p className="text-subtle text-[13px] mb-8">Deploy an agent and wait for the leader&apos;s next move — your holdings will show up here.</p>
-            <button
-              onClick={() => router.push('/traders')}
-              className="rounded-full border border-foreground/[0.18] bg-foreground/[0.03] text-foreground/90 text-[13px] px-5 py-2 hover:bg-foreground/[0.08] hover:border-foreground/40 transition-spring hover:scale-105 active:scale-95 cursor-pointer"
-            >
-              Discover Leaders
-            </button>
-          </div>
-          {/* Still show timeline even if no current holdings (past activity) */}
-          {activityData && activityData.events.length > 0 && (
+      {isConnected && !loading && !error && (
+        <div className="space-y-6">
+          
+          {/* Balance and Chart */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-border/60">
             <div>
+              <p className="text-[12px] text-muted font-normal uppercase tracking-wider mb-1.5">Total balance</p>
+              <div className="flex items-center gap-2">
+                <span className="text-[38px] font-bold tracking-tight text-foreground tabular-nums leading-none">
+                  ${netWorth.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                </span>
+                <span className="text-[13px] bg-surface border border-border/80 text-muted font-semibold px-2.5 py-1 rounded-lg select-none">
+                  aUSD
+                </span>
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <span className={`text-[14px] font-medium tabular-nums ${portfolioPnl >= 0 ? 'text-emerald-400' : 'text-red-400 font-semibold'}`}>
+                  {portfolioPnl >= 0 ? '+' : ''}${portfolioPnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+                <span className={`text-[11px] font-semibold px-2 py-0.5 rounded ${
+                  portfolioPnl >= 0
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                    : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                }`}>
+                  {portfolioPnl >= 0 ? '+' : ''}{pnlPct.toFixed(1)}%
+                </span>
+                <span className="text-[11px] text-subtle">unrealized</span>
+              </div>
+            </div>
+
+            {/* Sparkline chart */}
+            <div className="w-full md:w-[320px] h-[90px] flex-shrink-0">
+              <PortfolioChart points={chartPoints} />
+            </div>
+          </div>
+
+          {/* Balance breakdown — wallet vs deployed */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[
+              { label: 'Wallet Balance',     value: `${walletBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })} aUSD`, color: 'text-foreground' },
+              { label: 'Deployed in Agents', value: `${totalLocked.toLocaleString(undefined, { maximumFractionDigits: 2 })} aUSD`,    color: 'text-foreground' },
+              { label: 'Active Agents',      value: `${summary?.activeCount ?? 0}`,                                                   color: 'text-accent' },
+            ].map((s) => (
+              <div key={s.label} className="bg-surface border border-border rounded-2xl px-6 py-5 transition-spring hover:scale-[1.02]">
+                <p className="text-[11px] uppercase tracking-widest text-subtle mb-2">{s.label}</p>
+                <p className={`text-[22px] font-light tracking-tight tabular-nums ${s.color}`}>{s.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Holdings or empty state */}
+          {holdings.length === 0 ? (
+            <div className="py-16 text-center border border-border/50 rounded-2xl bg-card/50">
+              <p className="text-subtle text-[14px] mb-1">No open positions yet.</p>
+              <p className="text-subtle text-[13px] mb-8">Deploy an agent and wait for the leader&apos;s next move — your holdings will show up here.</p>
+              <button
+                onClick={() => router.push('/traders')}
+                className="rounded-full border border-foreground/[0.18] bg-foreground/[0.03] text-foreground/90 text-[13px] px-5 py-2 hover:bg-foreground/[0.08] hover:border-foreground/40 transition-spring hover:scale-105 active:scale-95 cursor-pointer"
+              >
+                Discover Leaders
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-[2.5rem_1fr_7rem_7rem_7rem_9rem] gap-4 px-5 mb-2 text-[11px] uppercase tracking-widest text-subtle">
+                <span />
+                <span>Token</span>
+                <span className="text-right">Value</span>
+                <span className="text-right">Avg Entry</span>
+                <span className="text-right">Current Price</span>
+                <span className="text-right">P&amp;L</span>
+              </div>
+              <div className="flex flex-col gap-2">
+                {holdings.map((holding) => (
+                  <HoldingCard key={holding.token} holding={holding} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Timeline block */}
+          {activityData && activityData.events.length > 0 && (
+            <div className="space-y-4 pt-2">
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <h2 className="text-[13px] font-medium text-muted">Agent Timeline</h2>
-                  <p className="text-[11px] text-subtle mt-0.5">Past autonomous decisions by your agents</p>
+                  <p className="text-[11px] text-subtle mt-0.5">Autonomous decisions made across all your agents</p>
                 </div>
                 <span className="text-[10px] text-subtle/50 uppercase tracking-wider">Powered by Somnia AI</span>
               </div>
               <AgentTimeline events={activityData.events} />
             </div>
           )}
-        </div>
-      )}
-
-      {isConnected && !loading && !error && holdings.length > 0 && (
-        <div className="space-y-8">
-          {/* Summary row — 4 cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { label: 'Holdings Value',      value: `${totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })} aUSD`, color: 'text-foreground' },
-              { label: 'Unrealized P&L',      value: `${totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)} aUSD`,                   color: totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400' },
-              { label: 'Open Positions',      value: `${openPositionCount} across ${summary?.activeCount ?? 0} agents`,           color: 'text-foreground' },
-              { label: 'Opened by Agents Today', value: openedToday !== null ? `${openedToday}` : '…', color: 'text-accent' },
-            ].map((s, idx) => (
-              <div key={s.label} className="bg-surface border border-border rounded-2xl px-6 py-5 transition-spring hover:scale-[1.02] animate-fade-in-up" style={{ animationDelay: `${idx * 40}ms` }}>
-                <p className="text-[11px] uppercase tracking-widest text-subtle mb-2">{s.label}</p>
-                <p className={`text-[22px] font-light tracking-tight tabular-nums ${s.color}`}>
-                  {s.value ?? '…'}
-                </p>
-              </div>
-            ))}
-          </div>
-
-          {/* Holdings list */}
-          <div>
-            <div className="grid grid-cols-[2.5rem_1fr_7rem_7rem_7rem_9rem] gap-4 px-5 mb-2 text-[11px] uppercase tracking-widest text-subtle">
-              <span />
-              <span>Token</span>
-              <span className="text-right">Value</span>
-              <span className="text-right">Avg Entry</span>
-              <span className="text-right">Current Price</span>
-              <span className="text-right">P&amp;L</span>
-            </div>
-            <div className="flex flex-col gap-2">
-              {holdings.map((holding) => (
-                <HoldingCard key={holding.token} holding={holding} />
-              ))}
-            </div>
-          </div>
-
-          {/* Agent Timeline */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h2 className="text-[13px] font-medium text-muted">Agent Timeline</h2>
-                <p className="text-[11px] text-subtle mt-0.5">Autonomous decisions made across all your agents</p>
-              </div>
-              <span className="text-[10px] text-subtle/50 uppercase tracking-wider">Powered by Somnia AI</span>
-            </div>
-            <AgentTimeline events={activityData?.events ?? []} />
-          </div>
+          
         </div>
       )}
     </div>

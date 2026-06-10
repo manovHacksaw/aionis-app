@@ -28,6 +28,8 @@ const TokenLogo = ({ symbol }: { symbol: string }) => {
   let src = '';
   if (sym === 'WSOMI' || sym === 'SOMI') src = '/token-logos/WSOMI.png';
   else if (sym === 'USDC' || sym === 'USDC.E') src = '/token-logos/USDC.png';
+  else if (sym === 'AUSD') src = '/token-logos/aUSD.svg';
+  else if (sym === 'USDT') src = '/token-logos/USDT.svg';
 
   if (src) {
     return (

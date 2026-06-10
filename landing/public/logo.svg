@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 400" fill="none">
+  <!--
+    Aionis logo — binoculars (white on transparent)
+    evenodd depth:
+      1 → white body
+      2 → transparent lens holes  (black circles removed)
+      3 → white pupil dots        (white circles restored)
+  -->
+  <path
+    fill="white"
+    fill-rule="evenodd"
+    d="
+      M 35 230
+      A 125 125 0 0 0 260 305
+      A 125 125 0 0 0 485 230
+      C 485 190 460 160 430 145
+      L 260 55
+      C 230 40 190 90 160 90
+      C 140 90 110 40 90 40
+      C 60 40 35 130 35 230 Z
+
+      M 250 230 A 90 90 0 1 0 70 230 A 90 90 0 1 0 250 230 Z
+
+      M 450 230 A 90 90 0 1 0 270 230 A 90 90 0 1 0 450 230 Z
+
+      M 227 265 A 32 32 0 1 0 163 265 A 32 32 0 1 0 227 265 Z
+
+      M 427 265 A 32 32 0 1 0 363 265 A 32 32 0 1 0 427 265 Z
+    "
+  />
+</svg>

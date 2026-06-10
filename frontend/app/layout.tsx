@@ -8,7 +8,10 @@ const jakarta = Plus_Jakarta_Sans({ variable: "--font-jakarta", subsets: ["latin
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Aionis — Copy Trading on Somnia",
+  title: {
+    default: "Aionis — Copy Trading on Somnia",
+    template: "%s · Aionis",
+  },
   description: "Copy the best on-chain traders automatically. Powered by Somnia.",
 };
 
