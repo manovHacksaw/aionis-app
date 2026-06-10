@@ -64,6 +64,19 @@ const TokenLogo = ({ symbol }: { symbol: string }) => {
 
 function fmt(addr: string) { return `${addr.slice(0, 6)}…${addr.slice(-4)}`; }
 
+function fmtSwapTime(timestamp: string | number) {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const sameDay = date.toDateString() === now.toDateString();
+  if (sameDay) return date.toLocaleTimeString();
+
+  const dayMs = 24 * 60 * 60 * 1000;
+  const dayDiff = Math.floor((now.setHours(0, 0, 0, 0) - new Date(date).setHours(0, 0, 0, 0)) / dayMs);
+  if (dayDiff === 1) return `1d ago`;
+  if (dayDiff > 1) return `${dayDiff}d ago`;
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
 interface PageProps {
   params: Promise<{ address: string }> | { address: string };
 }
@@ -307,7 +320,7 @@ export default function TraderDetailsPage({ params }: PageProps) {
                   </p>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] text-subtle block">{new Date(s.timestamp).toLocaleTimeString()}</span>
+                  <span className="text-[10px] text-subtle block">{fmtSwapTime(s.timestamp)}</span>
                   {s.txHash && (
                     <a
                       href={`https://explorer.somnia.network/tx/${s.txHash}`}
