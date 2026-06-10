@@ -5,6 +5,9 @@ import { useState, use, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAccount } from 'wagmi';
+import { keccak256, encodePacked } from 'viem';
+
+const VAULT_MANAGER_ADDRESS = (process.env.NEXT_PUBLIC_VAULT_MANAGER_ADDRESS ?? '') as `0x${string}`;
 import { useAUSD } from '@/hooks/useAUSD';
 import { useVault } from '@/hooks/useVault';
 import Avatar from '@/components/Avatar';
@@ -465,6 +468,12 @@ export default function ManageAgentPage({ params }: PageProps) {
   const profitYielded = stats?.totalProfitYielded ?? 0;
   const profitFmt     = `${profitYielded >= 0 ? '+' : ''}${profitYielded.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} aUSD`;
 
+  // Deterministic on-chain vault address: keccak256(follower, leader) — mirrors
+  // VaultManager's vaultIdFor, proving this agent is a real on-chain entity.
+  const vaultId = address
+    ? keccak256(encodePacked(['address', 'address'], [address as `0x${string}`, leaderAddress]))
+    : null;
+
   return (
     <div className="text-foreground px-[7.5%] py-8 w-full select-none">
       <div className="mb-8">
@@ -531,6 +540,24 @@ export default function ManageAgentPage({ params }: PageProps) {
             ))}
           </div>
         </div>
+
+        {/* Your Agent ID — proves this agent is a real on-chain entity */}
+        {vaultId && (
+          <div className="bg-card/50 border border-border/60 rounded-2xl px-5 py-3 flex items-center gap-2 text-[12px] animate-fade-in-up">
+            <span className="text-foreground/40 uppercase tracking-wide text-[10px]">Your Agent ID</span>
+            <span className="font-mono text-foreground/80">{fmt(vaultId)}</span>
+            <span className="text-foreground/30">on</span>
+            <a
+              href={`https://testnet.somnia.exploreme.pro/address/${VAULT_MANAGER_ADDRESS}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-mono text-subtle hover:text-accent transition-colors inline-flex items-center gap-1"
+              title="View VaultManager contract on explorer"
+            >
+              VaultManager ↗
+            </a>
+          </div>
+        )}
 
         {/* Vault-specific performance */}
         {stats?.vaultStats && (stats.vaultStats.closedCount > 0 || stats.vaultStats.openCount > 0) && (

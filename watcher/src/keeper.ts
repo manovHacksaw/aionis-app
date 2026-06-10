@@ -2,6 +2,7 @@ import { createWalletClient, createPublicClient, http, parseEther, formatEther }
 import { privateKeyToAccount }                                                    from 'viem/accounts';
 import { somniaTestnet, VAULT_MANAGER_ADDRESS, KEEPER_PRIVATE_KEY }              from './config.js';
 import { log, warn, error as logError }                                           from './logger.js';
+import { incrStat, STAT_EXECUTIONS }                                              from './stats.js';
 
 const VAULT_MANAGER_ABI = [
   {
@@ -151,6 +152,7 @@ export async function callCheckLeaderActivity(
     throw new Error(`checkLeaderActivity reverted (tx: ${hash})`);
   }
   log('keeper', `checkLeaderActivity confirmed ✓  block=${receipt.blockNumber}  gas_used=${receipt.gasUsed}  tx=${hash}`);
+  incrStat(STAT_EXECUTIONS);
 }
 
 /**
@@ -284,4 +286,5 @@ export async function callClosePosition(positionId: `0x${string}`): Promise<void
     throw new Error(`closePosition reverted (tx: ${hash})`);
   }
   log('keeper', `closePosition confirmed ✓  positionId=${positionId.slice(0, 18)}…  block=${receipt.blockNumber}  gas_used=${receipt.gasUsed}  tx=${hash}`);
+  incrStat(STAT_EXECUTIONS);
 }

@@ -6,45 +6,8 @@ import { usePrivy } from '@privy-io/react-auth';
 import ConnectButton from '@/components/ConnectButton';
 import Avatar from '@/components/Avatar';
 import { useAUSD } from '@/hooks/useAUSD';
-
-type Position = {
-  id:             string;
-  token:          string;
-  tokenAddress:   string;
-  ausdcAllocated: number;
-  entryPrice:     number;
-  currentPrice:   number;
-  unrealizedPnl:  number;
-  status:         string;
-  openedAt:       string;
-  leader:         string;
-};
-
-type Agent = {
-  id:            string;
-  leader:        string;
-  ausdcLocked:   number;
-  riskLevel:     number;
-  status:        string;
-  unrealizedPnl: number;
-  positions:     Position[];
-};
-
-type Summary = { totalLocked: number; totalPnl: number; activeCount: number };
-
-type AgentBreakdown = { leader: string; allocated: number; pnl: number; positionCount: number };
-
-type Holding = {
-  token:            string;
-  tokenAddress:     string;
-  totalAllocated:   number;
-  totalValue:       number;
-  weightedAvgEntry: number;
-  currentPrice:     number;
-  pnlUsd:           number;
-  pnlPct:           number;
-  byAgent:          AgentBreakdown[];
-};
+import { TokenBadge } from '@/components/TokenBadge';
+import { aggregateHoldings, fmt, type Agent, type Holding, type Summary } from '@/lib/portfolio';
 
 type ActivityEvent = {
   id:            string;
@@ -65,8 +28,6 @@ type ActivityData = {
   events: ActivityEvent[];
 };
 
-const fmt = (addr: string) => `${addr.slice(0, 6)}…${addr.slice(-4)}`;
-
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60_000);
@@ -76,54 +37,6 @@ function timeAgo(iso: string): string {
   if (h < 24) return `${h}h ago`;
   return `${Math.floor(h / 24)}d ago`;
 }
-
-const TOKEN_HUES: Record<string, number> = { WSOMI: 32, USDC: 200, NIA: 280, USDT: 150 };
-const tokenHue = (token: string) => TOKEN_HUES[token] ?? (token.charCodeAt(0) * 47) % 360;
-
-const TokenBadge = ({ token, size = 36 }: { token: string; size?: number }) => {
-  const sym = token.toUpperCase();
-  let src = '';
-  if (sym === 'WSOMI' || sym === 'SOMI') src = '/token-logos/WSOMI.png';
-  else if (sym === 'USDC' || sym === 'USDC.E') src = '/token-logos/USDC.png';
-  else if (sym === 'AUSD') src = '/token-logos/aUSD.svg';
-  else if (sym === 'USDT') src = '/token-logos/USDT.svg';
-
-  if (src) {
-    return (
-      <img
-        src={src}
-        alt={token}
-        style={{ width: size, height: size }}
-        className="rounded-full object-cover border border-border bg-surface flex-shrink-0"
-        onError={(e) => {
-          (e.target as HTMLElement).style.display = 'none';
-        }}
-      />
-    );
-  }
-
-  return (
-    <div
-      className="rounded-full flex items-center justify-center flex-shrink-0 border border-border/60 bg-gradient-to-br from-surface to-border select-none"
-      style={{ width: size, height: size }}
-    >
-      <svg
-        style={{ width: size * 0.55, height: size * 0.55 }}
-        className="text-muted"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <circle cx="12" cy="12" r="10" />
-        <path d="M12 8c-2 0-3 1-3 2s1 2 3 2 3 1 3 2-1 2-3 2" />
-        <path d="M12 6v12" />
-      </svg>
-    </div>
-  );
-};
 
 function PortfolioChart({ points }: { points: [number, number][] }) {
   if (points.length === 0) return null;
@@ -161,52 +74,6 @@ function PortfolioChart({ points }: { points: [number, number][] }) {
       <path d={d} stroke="#22c55e" strokeWidth="2" fill="none" strokeLinejoin="round" pathLength="1" className="animate-draw-path" />
     </svg>
   );
-}
-
-function aggregateHoldings(agents: Agent[]): Holding[] {
-  const byToken = new Map<string, Position[]>();
-  for (const agent of agents) {
-    for (const pos of agent.positions) {
-      if (!byToken.has(pos.token)) byToken.set(pos.token, []);
-      byToken.get(pos.token)!.push(pos);
-    }
-  }
-
-  return Array.from(byToken.entries()).map(([token, positions]) => {
-    const totalAllocated = positions.reduce((sum, p) => sum + p.ausdcAllocated, 0);
-    const weightedAvgEntry = totalAllocated > 0
-      ? positions.reduce((sum, p) => sum + p.ausdcAllocated * p.entryPrice, 0) / totalAllocated
-      : 0;
-    const currentPrice = positions[0]?.currentPrice ?? 0;
-    const pnlUsd = positions.reduce((sum, p) => sum + p.unrealizedPnl, 0);
-    const pnlPct = totalAllocated > 0 ? (pnlUsd / totalAllocated) * 100 : 0;
-
-    const byLeader = new Map<string, Position[]>();
-    for (const p of positions) {
-      if (!byLeader.has(p.leader)) byLeader.set(p.leader, []);
-      byLeader.get(p.leader)!.push(p);
-    }
-    const byAgent: AgentBreakdown[] = Array.from(byLeader.entries())
-      .map(([leader, ps]) => ({
-        leader,
-        allocated:     ps.reduce((sum, p) => sum + p.ausdcAllocated, 0),
-        pnl:           ps.reduce((sum, p) => sum + p.unrealizedPnl, 0),
-        positionCount: ps.length,
-      }))
-      .sort((a, b) => b.allocated - a.allocated);
-
-    return {
-      token,
-      tokenAddress: positions[0]?.tokenAddress ?? '',
-      totalAllocated,
-      totalValue: totalAllocated + pnlUsd,
-      weightedAvgEntry,
-      currentPrice,
-      pnlUsd,
-      pnlPct,
-      byAgent,
-    };
-  }).sort((a, b) => b.totalValue - a.totalValue);
 }
 
 // ── Agent Timeline ─────────────────────────────────────────────────────────────

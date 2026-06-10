@@ -10,6 +10,7 @@ import {
   waitForPrice,
 } from './keeper.js';
 import { claimSwap }                  from './dedup.js';
+import { incrStat, STAT_EVALUATED }   from './stats.js';
 import { somniaMainnet, POOLS, type PoolDef } from './config.js';
 import { log, warn, error }           from './logger.js';
 import type { Db }                    from './db.js';
@@ -116,6 +117,7 @@ export async function startWatcher(db: Db): Promise<() => void> {
     }
 
     log('watcher', `[${poolLabel}] TRACKED leader ${recipient.slice(0, 10)}… — triggering copy pipeline (${intent.side} $${intent.usdValue.toFixed(2)})`);
+    incrStat(STAT_EVALUATED);
 
     const claimed = await claimSwap(`${txHash}:${pool.address}`, recipient);
     if (!claimed) {

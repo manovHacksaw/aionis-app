@@ -173,7 +173,7 @@ export default function Home() {
   const [recentUserTrades, setRecentUserTrades] = useState<Trade[]>([]);
   const [recentTradesLoading, setRecentTradesLoading] = useState(false);
   const [allTrades, setAllTrades] = useState<Trade[]>([]);
-  const [platformStats, setPlatformStats] = useState<{ activeAgents: number; ausdLocked: number; totalPositions: number; openPositions: number } | null>(null);
+  const [platformStats, setPlatformStats] = useState<{ activeAgents: number; ausdLocked: number; totalPositions: number; openPositions: number; tradesEvaluatedToday: number } | null>(null);
   const [activity, setActivity] = useState<WatcherEvent[]>([]);
   const [activityLoading, setActivityLoading] = useState(true);
 
@@ -335,7 +335,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
               {[
                 {
                   l: "Active Agents",
@@ -355,6 +355,11 @@ export default function Home() {
                   l: "Positions Opened",
                   v: platformStats ? platformStats.totalPositions.toString() : "…",
                   s: platformStats ? `${platformStats.openPositions} open now` : "loading…",
+                },
+                {
+                  l: "AI Decisions Today",
+                  v: platformStats ? platformStats.tradesEvaluatedToday.toString() : "…",
+                  s: "leader trades evaluated",
                 },
               ].map(({ l, v, s }) => (
                 <div key={l}>

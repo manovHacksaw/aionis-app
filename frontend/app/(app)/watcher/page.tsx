@@ -49,6 +49,103 @@ const TokenLogo = ({ symbol }: { symbol: string }) => {
   );
 };
 
+// Friendly labels for raw watcher log tags.
+const TAG_LABELS: Record<string, string> = {
+  watcher: 'Scanner',
+  pnl:     'Portfolio',
+  keeper:  'Executor',
+  startup: 'System',
+};
+
+// Translates raw watcher console lines into plain-English sentences for
+// non-technical viewers, while leaving anything unrecognized untouched.
+function humanizeLog(l: WatcherLog): string {
+  const msg = l.msg;
+  let m: RegExpMatchArray | null;
+
+  // "[on-chain] follower=0xabc… WSOMI entry=$0.1061 now=$0.1052 unrealised=$-0.6966 (-0.82%)"
+  m = msg.match(/^\[(on-chain|paper)\] follower=(\S+)\s+(\w+)\s+entry=\$([\d.]+)\s+now=\$([\d.]+)\s+unrealised=([+-])\$([\d.]+) \(([+-][\d.]+)%\)$/);
+  if (m) {
+    const [, kind, follower, token, entry, now, sign, pnl, pct] = m;
+    const direction = sign === '-' ? 'down' : 'up';
+    const prefix = kind === 'paper' ? 'Paper agent' : 'Agent';
+    return `${prefix} ${follower} — ${token} position is ${direction} $${pnl} (${pct}%) · entry $${entry} → now $${now}`;
+  }
+
+  if (msg === 'no open on-chain positions') return 'No open positions to monitor right now';
+
+  m = msg.match(/^on-chain positions: (\d+)$/);
+  if (m) return `Monitoring ${m[1]} open position${m[1] === '1' ? '' : 's'}`;
+
+  m = msg.match(/^paper positions: (\d+)$/);
+  if (m) return `Monitoring ${m[1]} paper position${m[1] === '1' ? '' : 's'}`;
+
+  m = msg.match(/^On-chain leaders: (.+)$/);
+  if (m) {
+    const count = m[1].split(',').length;
+    return `Watching ${count} leader wallet${count === 1 ? '' : 's'} for new trades`;
+  }
+
+  m = msg.match(/^Tracking (\d+) leader\(s\) — (\d+) paper \+ (\d+) on-chain$/);
+  if (m) {
+    const [, total, paper, onchain] = m;
+    return `Tracking ${total} leader${total === '1' ? '' : 's'} total — ${onchain} with live agents${Number(paper) > 0 ? `, ${paper} in paper mode` : ''}`;
+  }
+
+  m = msg.match(/^(\w+) price: \$([\d.]+)$/);
+  if (m) return `${m[1]} price updated — now $${Number(m[2]).toFixed(4)}`;
+
+  m = msg.match(/swap detected — (BUY|SELL) rec=(\S+) \$([\d.]+)/);
+  if (m) {
+    const [, side, rec, usd] = m;
+    return `Detected a $${Number(usd).toFixed(2)} ${side === 'BUY' ? 'buy' : 'sell'} by leader ${rec}`;
+  }
+
+  m = msg.match(/TRACKED leader (\S+) — triggering copy pipeline \((BUY|SELL) \$([\d.]+)\)/);
+  if (m) {
+    const [, leader, side, usd] = m;
+    return `Evaluating copy trades for agents following ${leader} (leader ${side === 'BUY' ? 'bought' : 'sold'} $${Number(usd).toFixed(2)})`;
+  }
+
+  m = msg.match(/^copy-pipeline dedup skip/);
+  if (m) return 'Already evaluated this trade — skipping duplicate';
+
+  m = msg.match(/^keeper dispatch checkLeaderActivity — follower=(\S+)… leader=(\S+)/);
+  if (m) return `Checking leader ${m[2]}…'s latest trade for agent ${m[1]}…`;
+
+  m = msg.match(/^checkLeaderActivity follower=(\S+) leader=(\S+)/);
+  if (m) return `Checking leader ${m[2]}'s latest trade for agent ${m[1]}`;
+
+  if (/^checkLeaderActivity tx submitted/.test(msg)) return 'Submitting on-chain trade evaluation…';
+  if (/^checkLeaderActivity confirmed/.test(msg)) return 'Trade evaluation confirmed on-chain ✓';
+  if (/^checkLeaderActivity (failed|REVERTED)/.test(msg) || /^checkLeaderActivity failed/.test(msg)) {
+    return /timed out/i.test(msg)
+      ? 'Transaction confirmation timed out — will retry automatically'
+      : 'Trade evaluation failed — will retry automatically';
+  }
+
+  m = msg.match(/^updatePrice token=(\S+)/);
+  if (m) return `Refreshing on-chain price for ${m[1]}…`;
+  if (/^updatePrice confirmed/.test(msg)) return 'Price feed updated on-chain ✓';
+  if (/^updatePrice (failed|REVERTED)/.test(msg)) return 'Price refresh failed — will retry automatically';
+
+  m = msg.match(/^closePosition positionId=(\S+)/);
+  if (m) return `Closing position ${m[1]} on-chain…`;
+  if (/^closePosition confirmed/.test(msg)) return 'Position closed on-chain ✓';
+
+  m = msg.match(/^STOP-LOSS triggered — follower=(\S+)\s+token=(\S+)\s+drawdown=([\d.]+)%/);
+  if (m) return `Stop-loss triggered for agent ${m[1]} — ${m[2]} down ${m[3]}%`;
+
+  if (/^stop-loss: position closed/.test(msg)) return 'Stop-loss closed the position automatically ✓';
+  if (/^stop-loss: refreshing/.test(msg)) return 'Refreshing price before stop-loss close…';
+  if (/^stop-loss: price confirmed/.test(msg)) return 'Price confirmed — closing position via stop-loss…';
+
+  if (/^P&L updater started/.test(msg)) return 'Portfolio monitor started';
+
+  // Fallback: strip raw bracketed pool labels like "[WSOMI/USDC]" for readability.
+  return msg.replace(/^\[[\w/]+\]\s*/, '');
+}
+
 const timeAgo = (iso: string) => {
   const diffMs = Date.now() - new Date(iso).getTime();
   const sec = Math.floor(diffMs / 1000);
@@ -160,8 +257,8 @@ export default function WatcherActivityPage() {
                 } ${idx === 0 ? 'animate-fade-in-up' : ''}`}
               >
                 <span className="text-white/25">{new Date(l.ts).toLocaleTimeString()}</span>{' '}
-                <span className="text-emerald-400/70">[{l.tag}]</span>{' '}
-                {l.msg}
+                <span className="text-emerald-400/70">[{TAG_LABELS[l.tag] ?? l.tag}]</span>{' '}
+                {humanizeLog(l)}
               </div>
             ))
           )}

@@ -248,6 +248,23 @@ export default function TraderDetailsPage({ params }: PageProps) {
           )}
         </div>
 
+        {/* Watching banner — shown when the connected user already has an agent on this leader */}
+        {isConnected && isManaging && (
+          <Link
+            href={`/traders/${leaderAddress}/manage`}
+            className="mb-6 flex items-center justify-between gap-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-2.5 text-[12px] text-emerald-400 transition-spring hover:scale-[1.005] active:scale-[0.995]"
+          >
+            <span className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              Your agent is actively watching this leader
+            </span>
+            <span className="font-semibold">Manage →</span>
+          </Link>
+        )}
+
         {/* Stats grid — 6 cols on lg, 3 on sm */}
         <div className="grid grid-cols-3 lg:grid-cols-6 gap-4 pb-6 border-b border-foreground/[0.05]">
           {statItems.map(({ label, value, color }) => (

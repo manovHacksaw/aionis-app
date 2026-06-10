@@ -1,4 +1,5 @@
 import { prisma } from './prisma';
+import { incrDailyStat, STAT_AI_CALLS } from './redis';
 
 export type VaultLimits = {
   slippageBps:       number;
@@ -43,6 +44,7 @@ export async function explainTrade(
   limits: VaultLimits = DEFAULT_LIMITS
 ): Promise<string> {
   const requestId = attempt.requestId;
+  incrDailyStat(STAT_AI_CALLS);
 
   // 1. Check database cache first
   try {
