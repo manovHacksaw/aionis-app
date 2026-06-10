@@ -51,18 +51,26 @@ const REDIS_BLOCK_KEY = 'aionis:trades:lastBlock';
 const LOGS_TTL        = 86_400; // 24h
 
 // ── Block timestamp cache (only used for SKIPPED trades without tradeTimestamp) ──
-const blockTimeCache = new Map<bigint, number>();
+const blockTimeCache = new Map<string, number>();
 
-async function getBlockTime(blockNumber: bigint): Promise<number> {
+async function getBlockTime(blockNumber: string): Promise<number> {
   if (blockTimeCache.has(blockNumber)) return blockTimeCache.get(blockNumber)!;
   try {
-    const block = await client.getBlock({ blockNumber });
+    const block = await client.getBlock({ blockNumber: BigInt(blockNumber) });
     const ts    = Number(block.timestamp);
     blockTimeCache.set(blockNumber, ts);
     return ts;
   } catch {
     return Math.floor(Date.now() / 1000);
   }
+}
+
+// Recursively converts BigInt fields (blockNumber, args.requestId, args.usdValue,
+// args.tradeTimestamp, etc.) to strings so logs can be JSON-serialized for Redis.
+function serializeLog(value: unknown): any {
+  return JSON.parse(JSON.stringify(value, (_key, v) =>
+    typeof v === 'bigint' ? v.toString() : v
+  ));
 }
 
 // ── Sync skipped-trade logs (cold start: load from Redis, then scan delta) ───
@@ -101,7 +109,7 @@ async function syncSkippedLogs() {
           fromBlock: from,
           toBlock:   to,
         });
-        newLogs = newLogs.concat(chunk);
+        newLogs = newLogs.concat(chunk.map(serializeLog));
       }
 
       globalForLogs.skippedLogs     = globalForLogs.skippedLogs.concat(newLogs);
@@ -234,7 +242,7 @@ export async function GET(req: Request) {
 
   // Pre-fetch all unique block timestamps IN PARALLEL (avoids sequential RPC calls)
   // Only needed for WatcherRequested logs that lack a tradeTimestamp from WatcherResponse
-  const blocksNeedingTime = new Set<bigint>();
+  const blocksNeedingTime = new Set<string>();
   for (const log of relevant) {
     if (log.eventName === 'WatcherRequested' && log.blockNumber != null) {
       blocksNeedingTime.add(log.blockNumber);
@@ -251,7 +259,7 @@ export async function GET(req: Request) {
       .filter((l) => (l.args as { vaultId?: string }).vaultId?.toLowerCase() === vId)
       .sort((a, b) =>
         a.blockNumber !== b.blockNumber
-          ? Number(a.blockNumber! - b.blockNumber!)
+          ? Number(a.blockNumber!) - Number(b.blockNumber!)
           : a.logIndex! - b.logIndex!
       );
 
@@ -311,6 +319,6 @@ export async function GET(req: Request) {
 }
 
 // Synchronous block time lookup (only for already-prefetched entries)
-function getBlockTime_sync(blockNumber: bigint): number {
+function getBlockTime_sync(blockNumber: string): number {
   return blockTimeCache.get(blockNumber) ?? Math.floor(Date.now() / 1000);
 }
