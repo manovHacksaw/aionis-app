@@ -141,6 +141,19 @@ export async function startWatcher(db: Db): Promise<() => void> {
       const tokenOut = intent.tokenOut.toLowerCase();
       const tokenIn  = intent.tokenIn.toLowerCase();
 
+      // BUY-side: latestPrice[tokenOut] is otherwise only refreshed during
+      // SELL-side closes, so it drifts away from the leader's actual trade
+      // price over time and trips the on-chain slippage guard for every BUY.
+      // Refresh it once up front so _openPosition compares against a fresh price.
+      if (intent.side === 'BUY') {
+        try {
+          await callUpdatePrice(tokenOut);
+          await waitForPrice(tokenOut);
+        } catch (e) {
+          error('watcher', `price refresh failed for tokenOut=${tokenOut.slice(0, 10)}… leader=${recipient.slice(0, 10)}…`, e);
+        }
+      }
+
       for (const { follower, allowlist } of vaults) {
         if (intent.side === 'BUY') {
           if (!allowlist.includes(tokenOut)) {
